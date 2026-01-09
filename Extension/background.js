@@ -203,6 +203,10 @@ function handleNativeMessage(message) {
     case "ACTIVATE_TAB":
       activateTab(message.tabId, message.windowId);
       break;
+
+    case "OPEN_URL":
+      openUrl(message.url);
+      break;
       
     case "REQUEST_UPDATE":
       sendTabsUpdate();
@@ -344,6 +348,28 @@ async function activateTab(tabId, windowId) {
     console.log(`[TabDoggy] Activated tab ${tabId} in window ${windowId}`);
   } catch (error) {
     console.error(`[TabDoggy] Failed to activate tab ${tabId}:`, error);
+  }
+}
+
+/**
+ * Open a URL in a new tab (and focus it).
+ */
+async function openUrl(url) {
+  try {
+    if (!url || typeof url !== "string") {
+      return;
+    }
+
+    const created = await chrome.tabs.create({ url, active: true });
+    if (created?.id) {
+      lastActiveTabId = created.id;
+      tabCreationTimes[created.id] = Date.now();
+      await saveTabCreationTimes();
+    }
+    console.log(`[TabDoggy] Opened URL: ${url}`);
+    sendTabsUpdate();
+  } catch (error) {
+    console.error(`[TabDoggy] Failed to open URL: ${url}`, error);
   }
 }
 

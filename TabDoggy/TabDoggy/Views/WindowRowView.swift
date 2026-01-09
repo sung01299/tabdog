@@ -13,18 +13,20 @@ struct WindowRowView: View {
     let onActivate: () -> Void
     let onHide: () -> Void
     let onClose: () -> Void
+    var isKeyboardSelected: Bool = false
     
     @State private var isHovered = false
     @State private var processInfo: ProcessResourceInfo?
     
     private let processInfoService = ProcessInfoService.shared
     
-    init(window: WindowInfo, showAppName: Bool = true, onActivate: @escaping () -> Void, onHide: @escaping () -> Void, onClose: @escaping () -> Void) {
+    init(window: WindowInfo, showAppName: Bool = true, onActivate: @escaping () -> Void, onHide: @escaping () -> Void, onClose: @escaping () -> Void, isKeyboardSelected: Bool = false) {
         self.window = window
         self.showAppName = showAppName
         self.onActivate = onActivate
         self.onHide = onHide
         self.onClose = onClose
+        self.isKeyboardSelected = isKeyboardSelected
     }
     
     var body: some View {
@@ -46,7 +48,9 @@ struct WindowRowView: View {
                     .font(.callout)
                     .lineLimit(1)
                 
-                if showAppName {
+                // Avoid duplicate when the window title falls back to the app name
+                if showAppName,
+                   window.displayTitle.lowercased() != window.ownerName.lowercased() {
                     Text(window.ownerName)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -81,14 +85,14 @@ struct WindowRowView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Close window")
+                    .help("Quit app")
                 }
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .background(isHovered ? Color.primary.opacity(0.05) : Color.clear)
+        .background((isHovered || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.10) : Color.clear)
         .onHover { hovering in
             isHovered = hovering
         }
@@ -98,7 +102,7 @@ struct WindowRowView: View {
         .onAppear {
             loadProcessInfo()
         }
-        .onReceive(Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 5.0, on: .main, in: .common).autoconnect()) { _ in
             loadProcessInfo()
         }
     }
@@ -107,28 +111,26 @@ struct WindowRowView: View {
     
     @ViewBuilder
     private func resourceUsageView(info: ProcessResourceInfo) -> some View {
-        HStack(spacing: 6) {
-            // Memory usage
-            HStack(spacing: 2) {
+        HStack(spacing: 8) {
+            // CPU usage (always show)
+            HStack(spacing: 3) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(info.formattedCPU)
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+            }
+            .foregroundStyle(cpuColor(for: info.cpuPercent))
+            .help("CPU: \(info.formattedCPU)")
+            
+            // Memory usage (always show)
+            HStack(spacing: 3) {
                 Image(systemName: "memorychip")
-                    .font(.system(size: 8))
+                    .font(.system(size: 11, weight: .semibold))
                 Text(info.formattedMemory)
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
             }
             .foregroundStyle(memoryColor(for: info.memoryMB))
             .help("Memory: \(info.formattedMemory)")
-            
-            // CPU usage (only show if significant)
-            if info.cpuPercent >= 0.1 {
-                HStack(spacing: 2) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 8))
-                    Text(info.formattedCPU)
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                }
-                .foregroundStyle(cpuColor(for: info.cpuPercent))
-                .help("CPU: \(info.formattedCPU)")
-            }
         }
     }
     
@@ -168,6 +170,8 @@ struct AppGroupView: View {
     let onWindowActivate: (WindowInfo) -> Void
     let onWindowHide: (WindowInfo) -> Void
     let onWindowClose: (WindowInfo) -> Void
+    var isKeyboardSelected: Bool = false
+    var selectedWindowId: Int? = nil
     
     @State private var isHovered = false
     
@@ -207,7 +211,7 @@ struct AppGroupView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
-            .background(isHovered ? Color.primary.opacity(0.05) : Color.clear)
+            .background((isHovered || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.10) : Color.clear)
             .onHover { hovering in
                 isHovered = hovering
             }
@@ -226,7 +230,8 @@ struct AppGroupView: View {
                             showAppName: false,  // Don't show app name inside group
                             onActivate: { onWindowActivate(window) },
                             onHide: { onWindowHide(window) },
-                            onClose: { onWindowClose(window) }
+                            onClose: { onWindowClose(window) },
+                            isKeyboardSelected: selectedWindowId == window.id
                         )
                         .padding(.leading, 20)
                         
@@ -246,6 +251,7 @@ struct AppGroupView: View {
 struct HiddenAppRowView: View {
     let app: WindowInfo
     let onShow: () -> Void
+    var isKeyboardSelected: Bool = false
     
     @State private var isHovered = false
     
@@ -287,14 +293,78 @@ struct HiddenAppRowView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .background(isHovered ? Color.primary.opacity(0.05) : Color.clear)
+        .background((isHovered || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.10) : Color.clear)
         .onHover { hovering in
             isHovered = hovering
         }
         .onTapGesture {
             onShow()
+        }
+    }
+}
+
+// MARK: - Recently Quit Row View
+
+struct RecentlyQuitRowView: View {
+    let app: RecentlyQuitApp
+    let onRelaunch: () -> Void
+    var isKeyboardSelected: Bool = false
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            // App icon (best-effort)
+            if let url = app.bundleURL,
+               let icon = NSWorkspace.shared.icon(forFile: url.path) as NSImage? {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 20, height: 20)
+                    .opacity(0.7)
+            } else {
+                Image(systemName: "app")
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(.tertiary)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(app.appName)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                
+                Text(app.relativeTimeText)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            
+            Spacer()
+            
+            if isHovered {
+                Button {
+                    onRelaunch()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill")
+                        Text("Relaunch")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+                .help("Relaunch app")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .background((isHovered || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.10) : Color.clear)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onTapGesture {
+            onRelaunch()
         }
     }
 }

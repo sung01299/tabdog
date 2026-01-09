@@ -271,45 +271,26 @@ class WindowService {
     
     /// Close a specific window using Accessibility API
     func closeWindow(_ window: WindowInfo) {
-        let appElement = AXUIElementCreateApplication(pid_t(window.ownerPID))
-        
-        var windowsRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
-        
-        guard result == .success, let axWindows = windowsRef as? [AXUIElement] else {
-            print("[WindowService] Could not get windows for PID \(window.ownerPID)")
+        // User intent: quit the app (Cmd+Q), not just close a window (red traffic-light).
+        quitApp(for: window)
+    }
+
+    /// Quit an app (equivalent to Cmd+Q). Best-effort: terminate() then forceTerminate() if needed.
+    func quitApp(for window: WindowInfo) {
+        guard let app = NSRunningApplication(processIdentifier: pid_t(window.ownerPID)) else {
+            print("[WindowService] Could not find app with PID \(window.ownerPID) to quit")
             return
         }
         
-        let targetTitle = window.windowName ?? ""
+        // Ask the app to quit gracefully (may show save dialogs depending on app).
+        _ = app.terminate()
         
-        // Find matching window
-        for axWindow in axWindows {
-            var titleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(axWindow, kAXTitleAttribute as CFString, &titleRef)
-            let title = titleRef as? String ?? ""
-            
-            // Match by title, or close first window if no target title
-            if title == targetTitle || targetTitle.isEmpty || axWindows.count == 1 {
-                // Get close button and press it
-                var closeButtonRef: CFTypeRef?
-                let closeResult = AXUIElementCopyAttributeValue(axWindow, kAXCloseButtonAttribute as CFString, &closeButtonRef)
-                
-                if closeResult == .success, let closeButton = closeButtonRef as! AXUIElement? {
-                    let pressResult = AXUIElementPerformAction(closeButton, kAXPressAction as CFString)
-                    if pressResult == .success {
-                        print("[WindowService] Closed window: \(title)")
-                    } else {
-                        print("[WindowService] Failed to press close button, error: \(pressResult.rawValue)")
-                    }
-                    return
-                } else {
-                    print("[WindowService] Could not get close button for window: \(title)")
-                }
+        // If it didn't quit quickly, force terminate as a fallback.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if !app.isTerminated {
+                _ = app.forceTerminate()
             }
         }
-        
-        print("[WindowService] No matching window found to close")
     }
     
     // MARK: - Accessibility Helpers

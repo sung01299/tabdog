@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import AppKit
 
 // MARK: - View Mode (Browser Tabs vs Windows)
 enum ViewMode: String, CaseIterable {
@@ -18,6 +19,56 @@ enum ViewMode: String, CaseIterable {
         case .browserTabs: return "globe"
         case .windows: return "macwindow"
         }
+    }
+}
+
+// MARK: - Recently Quit Model
+
+struct RecentlyQuitApp: Identifiable, Hashable {
+    let appName: String
+    let bundleIdentifier: String?
+    let bundleURL: URL?
+    let quitAt: Date
+    
+    var id: String {
+        if let bundleIdentifier {
+            return bundleIdentifier
+        }
+        return "\(appName)-\(quitAt.timeIntervalSince1970)"
+    }
+    
+    var relativeTimeText: String {
+        let seconds = Int(Date().timeIntervalSince(quitAt))
+        if seconds < 60 { return "\(seconds)s ago" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        return "\(hours)h ago"
+    }
+}
+
+// MARK: - Recently Closed Tabs (Browser Mode)
+
+struct RecentlyClosedTab: Identifiable, Hashable {
+    let title: String
+    let url: String
+    let domain: String
+    let browser: String
+    let closedAt: Date
+    
+    var id: String { "\(browser)-\(closedAt.timeIntervalSince1970)-\(url)" }
+    
+    var browserDisplayName: String {
+        Tab.browserDisplayName(for: browser)
+    }
+    
+    var relativeTimeText: String {
+        let seconds = Int(Date().timeIntervalSince(closedAt))
+        if seconds < 60 { return "\(seconds)s ago" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        return "\(hours)h ago"
     }
 }
 
@@ -60,6 +111,9 @@ final class TabViewModel {
     /// Registered extension ID
     var extensionId: String = ""
     
+    /// Host registration status by browser (for Settings UI)
+    var hostRegistrationStatus: [HostRegistrationService.Browser: Bool] = [:]
+    
     /// Whether to group tabs by domain
     var groupByDomain: Bool = true
     
@@ -83,6 +137,22 @@ final class TabViewModel {
     /// Expanded app groups
     var expandedApps: Set<String> = []
     
+    // MARK: - Recently Quit (Window Mode)
+    
+    /// Recently quit apps (for quick relaunch)
+    var recentlyQuitApps: [RecentlyQuitApp] = []
+    
+    /// How long to keep "recently quit" items
+    private let recentlyQuitRetention: TimeInterval = 15 * 60
+
+    // MARK: - Recently Closed (Browser Mode)
+
+    /// Recently closed tabs (for quick reopen)
+    var recentlyClosedTabs: [RecentlyClosedTab] = []
+
+    /// How long to keep "recently closed" items
+    private let recentlyClosedRetention: TimeInterval = 15 * 60
+    
     // MARK: - Private Properties
     
     private let sharedData = SharedDataService.shared
@@ -90,6 +160,7 @@ final class TabViewModel {
     private var pollingTimer: Timer?
     private var lastDataModification: Date?
     private var windowActivationAttemptId: Int = 0
+    private var lastTabsById: [String: Tab] = [:]
     
     // MARK: - Computed Properties
     
@@ -110,17 +181,7 @@ final class TabViewModel {
     
     /// Tabs filtered by search query
     var filteredTabs: [Tab] {
-        let filtered: [Tab]
-        if searchQuery.isEmpty {
-            filtered = tabs
-        } else {
-            let query = searchQuery.lowercased()
-            filtered = tabs.filter { tab in
-                tab.title.lowercased().contains(query) ||
-                tab.url.lowercased().contains(query) ||
-                tab.domain.lowercased().contains(query)
-            }
-        }
+        let filtered = tabSearchFilteredTabs
         
         // Sort: active first, then by time, then alphabetically if times are same
         return filtered.sorted { tab1, tab2 in
@@ -150,12 +211,7 @@ final class TabViewModel {
     
     /// Tabs grouped by domain (multi-tab groups only)
     var domainGroups: [DomainGroup] {
-        let filtered = searchQuery.isEmpty ? tabs : tabs.filter { tab in
-            let query = searchQuery.lowercased()
-            return tab.title.lowercased().contains(query) ||
-                   tab.url.lowercased().contains(query) ||
-                   tab.domain.lowercased().contains(query)
-        }
+        let filtered = tabSearchFilteredTabs
         
         // Group tabs by root domain
         var groupDict: [String: [Tab]] = [:]
@@ -240,12 +296,7 @@ final class TabViewModel {
     
     /// Single tabs (domains with only 1 tab) - shown without group wrapper
     var singleTabs: [Tab] {
-        let filtered = searchQuery.isEmpty ? tabs : tabs.filter { tab in
-            let query = searchQuery.lowercased()
-            return tab.title.lowercased().contains(query) ||
-                   tab.url.lowercased().contains(query) ||
-                   tab.domain.lowercased().contains(query)
-        }
+        let filtered = tabSearchFilteredTabs
         
         // Count tabs per domain
         var domainCounts: [String: Int] = [:]
@@ -278,6 +329,70 @@ final class TabViewModel {
                 // If times are same, sort alphabetically by title
                 return tab1.title.lowercased() < tab2.title.lowercased()
             }
+    }
+
+    // MARK: - Tab Search Parsing / Filtering (Browser Mode)
+
+    /// Filter tabs using the search query, with a "browser prefix" shortcut:
+    /// - If the first token matches exactly one known browser by prefix (even 1 char),
+    ///   we interpret it as a browser filter (e.g. "b" -> Brave tabs).
+    /// - Remaining tokens (if any) become the normal text search within that browser.
+    private var tabSearchFilteredTabs: [Tab] {
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return tabs }
+
+        let (browserFilter, textQuery) = parseTabSearchQuery(trimmed)
+
+        if let browserFilter {
+            let q = textQuery.lowercased()
+            return tabs.filter { tab in
+                let tabBrowser = (tab.browser ?? "unknown").lowercased()
+                guard tabBrowser == browserFilter else { return false }
+                if q.isEmpty { return true }
+                return tab.title.lowercased().contains(q) ||
+                    tab.url.lowercased().contains(q) ||
+                    tab.domain.lowercased().contains(q)
+            }
+        }
+
+        let q = trimmed.lowercased()
+        return tabs.filter { tab in
+            tab.title.lowercased().contains(q) ||
+                tab.url.lowercased().contains(q) ||
+                tab.domain.lowercased().contains(q)
+        }
+    }
+
+    private func parseTabSearchQuery(_ trimmed: String) -> (browserFilter: String?, textQuery: String) {
+        let tokens = trimmed
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { String($0).lowercased() }
+
+        guard let first = tokens.first else {
+            return (nil, "")
+        }
+
+        if let browser = resolveBrowserPrefix(first) {
+            let remaining = tokens.dropFirst().joined(separator: " ")
+            return (browser, remaining)
+        }
+
+        return (nil, trimmed)
+    }
+
+    /// Returns a browser identifier (e.g. "brave") if `token` matches exactly one known browser by prefix.
+    private func resolveBrowserPrefix(_ token: String) -> String? {
+        let t = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !t.isEmpty else { return nil }
+
+        let candidates = SharedDataService.knownBrowsers.filter { browser in
+            let id = browser.lowercased()
+            let name = Tab.browserDisplayName(for: id).lowercased()
+            return id.hasPrefix(t) || name.hasPrefix(t)
+        }
+
+        guard candidates.count == 1 else { return nil }
+        return candidates[0].lowercased()
     }
     
     /// Number of active (non-pinned regular) tabs
@@ -328,6 +443,45 @@ final class TabViewModel {
         let query = searchQuery.lowercased()
         return hidden.filter { $0.ownerName.lowercased().contains(query) }
             .sorted { $0.ownerName.lowercased() < $1.ownerName.lowercased() }
+    }
+    
+    /// Recently quit apps (filtered + pruned; last 15 minutes)
+    var filteredRecentlyQuitApps: [RecentlyQuitApp] {
+        let now = Date()
+        let kept = recentlyQuitApps.filter { now.timeIntervalSince($0.quitAt) <= recentlyQuitRetention }
+        
+        if searchQuery.isEmpty {
+            return kept.sorted { $0.quitAt > $1.quitAt }
+        }
+        
+        let q = searchQuery.lowercased()
+        return kept
+            .filter { $0.appName.lowercased().contains(q) }
+            .sorted { $0.quitAt > $1.quitAt }
+    }
+
+    /// Recently closed tabs (filtered + pruned; last 15 minutes)
+    var filteredRecentlyClosedTabs: [RecentlyClosedTab] {
+        let now = Date()
+        let kept = recentlyClosedTabs.filter { now.timeIntervalSince($0.closedAt) <= recentlyClosedRetention }
+
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return kept
+        }
+
+        let (browserFilter, textQuery) = parseTabSearchQuery(trimmed)
+        let q = textQuery.lowercased()
+
+        return kept.filter { item in
+            if let browserFilter, item.browser.lowercased() != browserFilter {
+                return false
+            }
+            if q.isEmpty { return true }
+            return item.title.lowercased().contains(q) ||
+                item.url.lowercased().contains(q) ||
+                item.domain.lowercased().contains(q)
+        }
     }
     
     /// App count (number of apps with visible windows)
@@ -487,8 +641,52 @@ final class TabViewModel {
             
             // Read and merge data from all connected browsers
             let mergedData = sharedData.readAllBrowserTabData()
+            recordRecentlyClosedTabs(newTabs: mergedData.tabs, connectedBrowsers: browsers)
             tabs = mergedData.tabs
         }
+    }
+
+    private func recordRecentlyClosedTabs(newTabs: [Tab], connectedBrowsers: [String]) {
+        // Don't treat disconnections as "closed tabs".
+        let connected = connectedBrowsers.map { $0.lowercased() }
+        guard !connected.isEmpty else {
+            lastTabsById = Dictionary(uniqueKeysWithValues: newTabs.map { ($0.id, $0) })
+            return
+        }
+
+        let newById = Dictionary(uniqueKeysWithValues: newTabs.map { ($0.id, $0) })
+
+        if !lastTabsById.isEmpty {
+            let now = Date()
+            for (id, oldTab) in lastTabsById where newById[id] == nil {
+                let browser = (oldTab.browser ?? "unknown").lowercased()
+                // If the browser itself is disconnected, skip to avoid false positives.
+                if browser != "unknown", !connected.contains(browser) {
+                    continue
+                }
+                guard !oldTab.url.isEmpty else { continue }
+
+                recentlyClosedTabs.insert(
+                    RecentlyClosedTab(
+                        title: oldTab.title,
+                        url: oldTab.url,
+                        domain: oldTab.domain,
+                        browser: browser,
+                        closedAt: now
+                    ),
+                    at: 0
+                )
+            }
+        }
+
+        // Prune (retention + cap)
+        let cutoff = Date().addingTimeInterval(-recentlyClosedRetention)
+        recentlyClosedTabs = recentlyClosedTabs
+            .filter { $0.closedAt >= cutoff }
+            .prefix(30)
+            .map { $0 }
+
+        lastTabsById = newById
     }
     
     // MARK: - Sort Order
@@ -507,22 +705,18 @@ final class TabViewModel {
     
     /// Check if the Native Messaging Host is registered
     func checkHostRegistration() {
-        isHostRegistered = HostRegistrationService.isRegistered()
-        if let registeredId = HostRegistrationService.getRegisteredExtensionId() {
-            extensionId = registeredId
-        }
+        hostRegistrationStatus = HostRegistrationService.registrationStatus()
+        isHostRegistered = hostRegistrationStatus.values.contains(true)
+        // In production we use a fixed extension id; keep showing the registered one if it exists.
+        extensionId = HostRegistrationService.getRegisteredExtensionId() ?? HostRegistrationService.productionExtensionId
     }
     
     /// Register the Native Messaging Host
     func registerHost() {
-        guard !extensionId.isEmpty else {
-            errorMessage = "Please enter the Chrome extension ID"
-            return
-        }
-        
         do {
-            try HostRegistrationService.register(extensionId: extensionId)
-            isHostRegistered = true
+            // Production: use fixed extension id and register for all supported browsers.
+            try HostRegistrationService.registerProduction()
+            checkHostRegistration()
             errorMessage = nil
         } catch {
             errorMessage = "Failed to register host: \(error.localizedDescription)"
@@ -533,7 +727,7 @@ final class TabViewModel {
     func unregisterHost() {
         do {
             try HostRegistrationService.unregister()
-            isHostRegistered = false
+            checkHostRegistration()
         } catch {
             errorMessage = "Failed to unregister host: \(error.localizedDescription)"
         }
@@ -608,6 +802,7 @@ final class TabViewModel {
     
     /// Refresh window list including hidden apps
     func refreshWindows() {
+        pruneRecentlyQuit()
         windows = windowService.getAllWindows()
         appGroups = windowService.getWindowsGroupedByApp()
     }
@@ -681,10 +876,73 @@ final class TabViewModel {
     
     /// Close a window
     func closeWindow(_ window: WindowInfo) {
+        recordRecentlyQuit(window)
         windowService.closeWindow(window)
-        // Optimistically remove from list
-        windows.removeAll { $0.id == window.id }
-        appGroups = windowService.getWindowsGroupedByApp()
+        // Optimistically remove all entries for that app (visible + hidden + minimized pseudo rows)
+        windows.removeAll { $0.ownerPID == window.ownerPID }
+        appGroups.removeAll { $0.pid == window.ownerPID }
+        expandedApps = expandedApps.filter { !$0.hasPrefix("\(window.ownerPID)-") }
+    }
+    
+    // MARK: - Recently Quit Helpers
+    
+    private func pruneRecentlyQuit() {
+        let now = Date()
+        recentlyQuitApps.removeAll { now.timeIntervalSince($0.quitAt) > recentlyQuitRetention }
+    }
+    
+    private func recordRecentlyQuit(_ window: WindowInfo) {
+        pruneRecentlyQuit()
+        
+        // Best-effort: fetch bundle id / URL from the running app before quitting.
+        let runningApp = NSRunningApplication(processIdentifier: pid_t(window.ownerPID))
+        let bundleId = runningApp?.bundleIdentifier
+        let bundleURL = runningApp?.bundleURL
+        
+        let entry = RecentlyQuitApp(
+            appName: window.ownerName,
+            bundleIdentifier: bundleId,
+            bundleURL: bundleURL,
+            quitAt: Date()
+        )
+        
+        // De-dup by bundle id when available, otherwise by name.
+        if let bundleId {
+            recentlyQuitApps.removeAll { $0.bundleIdentifier == bundleId }
+        } else {
+            recentlyQuitApps.removeAll { $0.bundleIdentifier == nil && $0.appName == entry.appName }
+        }
+        
+        recentlyQuitApps.insert(entry, at: 0)
+    }
+    
+    func relaunchRecentlyQuit(_ app: RecentlyQuitApp) {
+        // Optimistic UX: once user requests relaunch, remove it from Recently Quit immediately.
+        // If the app fails to launch, it can be quit again later and reappear.
+        if let bundleId = app.bundleIdentifier {
+            recentlyQuitApps.removeAll { $0.bundleIdentifier == bundleId }
+        } else {
+            recentlyQuitApps.removeAll { $0.bundleIdentifier == nil && $0.appName == app.appName }
+        }
+        
+        // Prefer launching by bundle URL (most reliable)
+        if let url = app.bundleURL {
+            let config = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.openApplication(at: url, configuration: config)
+            return
+        }
+        if let bundleId = app.bundleIdentifier {
+            NSWorkspace.shared.launchApplication(withBundleIdentifier: bundleId, options: [], additionalEventParamDescriptor: nil, launchIdentifier: nil)
+        }
+    }
+
+    // MARK: - Recently Closed Tabs (Browser Mode)
+
+    func reopenRecentlyClosedTab(_ tab: RecentlyClosedTab) {
+        // Optimistic UX: once user requests reopen, remove it immediately.
+        recentlyClosedTabs.removeAll { $0.id == tab.id }
+
+        sharedData.writeCommand(.openUrl(tab.url, browser: tab.browser))
     }
     
     /// Toggle app group expanded/collapsed state
@@ -714,6 +972,7 @@ final class TabViewModel {
     func loadSampleData() {
         tabs = Tab.samples
         isConnected = true
+        lastTabsById = Dictionary(uniqueKeysWithValues: tabs.map { ($0.id, $0) })
     }
     #endif
 }

@@ -22,12 +22,18 @@ struct Tab: Identifiable, Codable, Hashable {
     
     /// Browser display name
     var browserDisplayName: String {
+        Self.browserDisplayName(for: browser)
+    }
+
+    /// Browser display name for a browser identifier (e.g. "chrome" -> "Chrome")
+    static func browserDisplayName(for browser: String?) -> String {
         switch browser?.lowercased() {
         case "chrome": return "Chrome"
         case "brave": return "Brave"
         case "edge": return "Edge"
         case "opera": return "Opera"
         case "vivaldi": return "Vivaldi"
+        case "unknown": return "Browser"
         default: return browser?.capitalized ?? "Browser"
         }
     }

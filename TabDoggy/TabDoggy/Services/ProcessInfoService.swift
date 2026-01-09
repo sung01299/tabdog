@@ -19,91 +19,87 @@ class ProcessInfoService {
     
     // MARK: - Process Info Cache
     
+    private struct CacheEntry {
+        let info: ProcessResourceInfo
+        let timestamp: Date
+    }
+    
     /// Cache of process info to avoid frequent lookups
-    private var processInfoCache: [Int: ProcessResourceInfo] = [:]
-    private var lastCacheUpdate: Date?
-    private let cacheValiditySeconds: TimeInterval = 2.0  // Refresh every 2 seconds
+    private var processInfoCache: [Int: CacheEntry] = [:]
+    
+    /// Refresh interval (ps invocation is relatively expensive; keep it low-frequency)
+    private let cacheValiditySeconds: TimeInterval = 10.0  // Refresh every 10 seconds
     
     // MARK: - Public Methods
     
     /// Get resource info for a process by PID
     func getProcessInfo(pid: Int) -> ProcessResourceInfo? {
-        // Return cached info if still valid
-        if let lastUpdate = lastCacheUpdate,
-           Date().timeIntervalSince(lastUpdate) < cacheValiditySeconds,
-           let cached = processInfoCache[pid] {
-            return cached
+        let now = Date()
+        if let entry = processInfoCache[pid], now.timeIntervalSince(entry.timestamp) < cacheValiditySeconds {
+            return entry.info
         }
-        
-        // Get fresh info
-        return fetchProcessInfo(pid: pid)
+        guard let info = fetchProcessInfo(pid: pid) else {
+            return nil
+        }
+        processInfoCache[pid] = CacheEntry(info: info, timestamp: now)
+        return info
     }
     
     /// Refresh all process info
     func refreshAllProcessInfo(pids: [Int]) {
-        processInfoCache.removeAll()
-        
+        let now = Date()
         for pid in pids {
             if let info = fetchProcessInfo(pid: pid) {
-                processInfoCache[pid] = info
+                processInfoCache[pid] = CacheEntry(info: info, timestamp: now)
             }
         }
-        
-        lastCacheUpdate = Date()
     }
     
     // MARK: - Private Methods
     
     /// Fetch process info from the system
     private func fetchProcessInfo(pid: Int) -> ProcessResourceInfo? {
-        // Get memory info using proc_pid_rusage
-        var rusage = rusage_info_v3()
+        // ps-based approach (lower-frequency, stable to parse, matches system tools better)
+        // %cpu and rss are provided by ps.
+        return fetchProcessInfoViaPS(pid: pid)
+    }
+    
+    private func fetchProcessInfoViaPS(pid: Int) -> ProcessResourceInfo? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = ["-p", "\(pid)", "-o", "%cpu=", "-o", "rss="]
         
-        let result = withUnsafeMutablePointer(to: &rusage) { ptr -> Int32 in
-            let opaquePtr = UnsafeMutableRawPointer(ptr)
-            return proc_pid_rusage(Int32(pid), RUSAGE_INFO_V3, opaquePtr.assumingMemoryBound(to: rusage_info_t?.self))
-        }
+        let out = Pipe()
+        task.standardOutput = out
+        task.standardError = Pipe()
         
-        guard result == 0 else {
+        do {
+            try task.run()
+        } catch {
             return nil
         }
         
-        // Convert memory from bytes to MB
-        let memoryMB = Double(rusage.ri_phys_footprint) / (1024 * 1024)
+        task.waitUntilExit()
+        guard task.terminationStatus == 0 else { return nil }
         
-        // Get CPU usage using task_info
-        let cpuUsage = getCPUUsage(pid: pid)
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        guard let raw = String(data: data, encoding: .utf8) else { return nil }
         
-        let info = ProcessResourceInfo(
-            pid: pid,
-            memoryMB: memoryMB,
-            cpuPercent: cpuUsage
-        )
+        // Expected: "<cpu> <rss>\n" with variable whitespace
+        let parts = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: { $0 == " " || $0 == "\t" })
+            .map(String.init)
         
-        processInfoCache[pid] = info
+        guard parts.count >= 2 else { return nil }
         
-        return info
-    }
-    
-    /// Get CPU usage percentage for a process
-    private func getCPUUsage(pid: Int) -> Double {
-        // Use sysctl to get process info
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.size
+        let cpuString = parts[0].replacingOccurrences(of: ",", with: ".")
+        let rssString = parts[1]
         
-        let result = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
+        guard let cpu = Double(cpuString), let rssKB = Double(rssString) else { return nil }
+        let memMB = rssKB / 1024.0
         
-        guard result == 0 else {
-            return 0.0
-        }
-        
-        // CPU percentage from kinfo_proc is in p_pctcpu (0-100 scaled)
-        // Note: This is a rough estimate - for more accurate CPU tracking,
-        // we'd need to sample over time
-        let cpuUsage = Double(info.kp_proc.p_pctcpu) / Double(FSCALE) * 100.0
-        
-        return cpuUsage
+        return ProcessResourceInfo(pid: pid, memoryMB: memMB, cpuPercent: max(0.0, cpu))
     }
 }
 

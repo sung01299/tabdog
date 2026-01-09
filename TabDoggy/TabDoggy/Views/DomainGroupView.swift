@@ -13,6 +13,8 @@ struct DomainGroupView: View {
     let onCloseAll: () -> Void
     let onTabActivate: (Tab) -> Void
     let onTabClose: (Tab) -> Void
+    var isKeyboardSelected: Bool = false
+    var selectedTabId: String? = nil
     
     @State private var isHoveringHeader = false
     
@@ -28,7 +30,8 @@ struct DomainGroupView: View {
                         TabRowView(
                             tab: tab,
                             onActivate: { onTabActivate(tab) },
-                            onClose: { onTabClose(tab) }
+                            onClose: { onTabClose(tab) },
+                            isKeyboardSelected: selectedTabId == tab.id
                         )
                         .padding(.leading, 8)  // Indent tabs under domain
                         
@@ -59,10 +62,8 @@ struct DomainGroupView: View {
                     .frame(width: 6, height: 6)
             }
             
-            // Domain favicon placeholder
-            Image(systemName: "globe")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // Domain icon: if any tab in group has a favicon, use it; otherwise fallback.
+            domainIcon
             
             // Domain name
             Text(group.domain)
@@ -98,7 +99,7 @@ struct DomainGroupView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isHoveringHeader ? Color.primary.opacity(0.05) : Color.primary.opacity(0.02))
+        .background((isHoveringHeader || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.08) : Color.primary.opacity(0.02))
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -121,6 +122,39 @@ struct DomainGroupView: View {
                 onToggle()
             }
         }
+    }
+    
+    // MARK: - Domain Icon
+    
+    private var domainIcon: some View {
+        Group {
+            // Prefer active tab's favicon, otherwise first available favicon in the group.
+            let faviconTab = group.tabs.first(where: { $0.active && ($0.favIconUrl?.isEmpty == false) })
+                ?? group.tabs.first(where: { $0.favIconUrl?.isEmpty == false })
+            
+            if let favIconUrl = faviconTab?.favIconUrl,
+               let url = URL(string: favIconUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    default:
+                        defaultDomainIcon
+                    }
+                }
+            } else {
+                defaultDomainIcon
+            }
+        }
+        .frame(width: 14, height: 14)
+    }
+    
+    private var defaultDomainIcon: some View {
+        Image(systemName: "globe")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 }
 

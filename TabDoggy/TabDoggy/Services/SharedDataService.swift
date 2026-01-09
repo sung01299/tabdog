@@ -305,18 +305,23 @@ struct TabCommand: Codable {
     let tabId: Int?
     let tabIds: [Int]?
     let windowId: Int?
+    let url: String?
     let browser: String?  // Which browser to send command to
     let timestamp: Date
     
     static func close(tabId: Int, browser: String? = nil) -> TabCommand {
-        TabCommand(type: "CLOSE_TAB", tabId: tabId, tabIds: nil, windowId: nil, browser: browser, timestamp: Date())
+        TabCommand(type: "CLOSE_TAB", tabId: tabId, tabIds: nil, windowId: nil, url: nil, browser: browser, timestamp: Date())
     }
     
     static func closeTabs(tabIds: [Int], browser: String? = nil) -> TabCommand {
-        TabCommand(type: "CLOSE_TABS", tabId: nil, tabIds: tabIds, windowId: nil, browser: browser, timestamp: Date())
+        TabCommand(type: "CLOSE_TABS", tabId: nil, tabIds: tabIds, windowId: nil, url: nil, browser: browser, timestamp: Date())
     }
     
     static func activate(tabId: Int, windowId: Int, browser: String? = nil) -> TabCommand {
-        TabCommand(type: "ACTIVATE_TAB", tabId: tabId, tabIds: nil, windowId: windowId, browser: browser, timestamp: Date())
+        TabCommand(type: "ACTIVATE_TAB", tabId: tabId, tabIds: nil, windowId: windowId, url: nil, browser: browser, timestamp: Date())
+    }
+
+    static func openUrl(_ url: String, browser: String? = nil) -> TabCommand {
+        TabCommand(type: "OPEN_URL", tabId: nil, tabIds: nil, windowId: nil, url: url, browser: browser, timestamp: Date())
     }
 }

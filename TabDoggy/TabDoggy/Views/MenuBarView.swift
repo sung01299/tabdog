@@ -6,10 +6,23 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct MenuBarView: View {
     @Bindable var viewModel: TabViewModel
     @FocusState private var isSearchFocused: Bool
+    @State private var keyDownMonitor: Any?
+    @State private var keyboardSelection: KeyboardSelection?
+
+    private enum KeyboardSelection: Hashable {
+        case domainGroup(String) // domain
+        case tab(String) // Tab.id
+        case recentlyClosedTab(String) // RecentlyClosedTab.id
+        case appGroup(String) // AppWindowGroup.id
+        case window(Int) // WindowInfo.id
+        case hiddenApp(Int) // WindowInfo.id (hidden app pseudo entry)
+        case recentlyQuit(String) // RecentlyQuitApp.id
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -40,10 +53,21 @@ struct MenuBarView: View {
         .onAppear {
             // Auto-focus search bar when menu opens
             focusSearchBar()
+            installKeyMonitorIfNeeded()
+            keyboardSelection = nil
+        }
+        .onDisappear {
+            removeKeyMonitorIfNeeded()
         }
         .onChange(of: viewModel.viewMode) { _, _ in
-            // Re-focus search bar when mode changes
+            // Reset keyboard selection when changing modes
+            keyboardSelection = nil
             focusSearchBar()
+        }
+        .onChange(of: isSearchFocused) { _, newValue in
+            if newValue {
+                keyboardSelection = nil
+            }
         }
     }
     
@@ -54,17 +78,192 @@ struct MenuBarView: View {
             isSearchFocused = true
         }
     }
+
+    private func installKeyMonitorIfNeeded() {
+        guard keyDownMonitor == nil else { return }
+
+        keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            // Tab key toggles Browser/Windows mode while the menu is open.
+            // Swallow the event to prevent default focus navigation.
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let hasDisallowedModifiers = flags.contains(.command) || flags.contains(.option) || flags.contains(.control)
+            if hasDisallowedModifiers {
+                return event
+            }
+
+            let tabKeyCode: UInt16 = 48
+            let upArrowKeyCode: UInt16 = 126
+            let downArrowKeyCode: UInt16 = 125
+            let escapeKeyCode: UInt16 = 53
+            let returnKeyCode: UInt16 = 36
+            let enterKeypadKeyCode: UInt16 = 76
+
+            // Up/Down: keyboard navigation between the search field and the list items (NOT the mode switch).
+            if event.keyCode == upArrowKeyCode || event.keyCode == downArrowKeyCode {
+                let items = selectableItemsInCurrentView()
+                guard !items.isEmpty else { return event }
+
+                if isSearchFocused {
+                    keyboardSelection = (event.keyCode == downArrowKeyCode) ? items.first : items.last
+                    isSearchFocused = false
+                    return nil
+                }
+
+                if let sel = keyboardSelection, let idx = items.firstIndex(of: sel) {
+                    if event.keyCode == upArrowKeyCode {
+                        if idx == 0 {
+                            keyboardSelection = nil
+                            focusSearchBar()
+                        } else {
+                            keyboardSelection = items[idx - 1]
+                        }
+                    } else {
+                        if idx == items.count - 1 {
+                            keyboardSelection = nil
+                            focusSearchBar()
+                        } else {
+                            keyboardSelection = items[idx + 1]
+                        }
+                    }
+                    return nil
+                }
+
+                // If we have a stale selection, reset back to search.
+                keyboardSelection = nil
+                focusSearchBar()
+                return nil
+            }
+
+            // Escape: return to search when navigating list
+            if event.keyCode == escapeKeyCode, keyboardSelection != nil {
+                keyboardSelection = nil
+                focusSearchBar()
+                return nil
+            }
+
+            // Enter: "click/activate" the currently selected list item
+            if (event.keyCode == returnKeyCode || event.keyCode == enterKeypadKeyCode),
+               let sel = keyboardSelection {
+                activateSelection(sel)
+                return nil
+            }
+
+            if event.keyCode == tabKeyCode {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    toggleViewMode()
+                }
+                return nil
+            }
+
+            return event
+        }
+    }
+
+    private func activateSelection(_ sel: KeyboardSelection) {
+        switch sel {
+        case .domainGroup(let domain):
+            viewModel.toggleDomainExpanded(domain)
+        case .tab(let id):
+            if let tab = viewModel.tabs.first(where: { $0.id == id }) {
+                viewModel.activateTab(tab)
+            }
+        case .recentlyClosedTab(let id):
+            if let tab = viewModel.filteredRecentlyClosedTabs.first(where: { $0.id == id }) {
+                viewModel.reopenRecentlyClosedTab(tab)
+            }
+        case .appGroup(let id):
+            viewModel.toggleAppExpanded(id)
+        case .window(let id):
+            if let window = viewModel.windows.first(where: { $0.id == id }) {
+                viewModel.activateWindow(window)
+            }
+        case .hiddenApp(let id):
+            if let window = viewModel.windows.first(where: { $0.id == id }) {
+                viewModel.activateWindow(window)
+            }
+        case .recentlyQuit(let id):
+            if let app = viewModel.filteredRecentlyQuitApps.first(where: { $0.id == id }) {
+                viewModel.relaunchRecentlyQuit(app)
+            }
+        }
+    }
+
+    private func selectableItemsInCurrentView() -> [KeyboardSelection] {
+        switch viewModel.viewMode {
+        case .browserTabs:
+            if viewModel.groupByDomain {
+                var items: [KeyboardSelection] = []
+                for group in viewModel.domainGroups {
+                    items.append(.domainGroup(group.domain))
+                    if group.isExpanded {
+                        for tab in group.tabs {
+                            items.append(.tab(tab.id))
+                        }
+                    }
+                }
+                for tab in viewModel.singleTabs {
+                    items.append(.tab(tab.id))
+                }
+                for tab in viewModel.filteredRecentlyClosedTabs {
+                    items.append(.recentlyClosedTab(tab.id))
+                }
+                return items
+            }
+            var items = viewModel.filteredTabs.map { KeyboardSelection.tab($0.id) }
+            items.append(contentsOf: viewModel.filteredRecentlyClosedTabs.map { .recentlyClosedTab($0.id) })
+            return items
+
+        case .windows:
+            var items: [KeyboardSelection] = []
+            for group in viewModel.filteredAppGroups {
+                items.append(.appGroup(group.id))
+                if viewModel.expandedApps.contains(group.id) {
+                    for window in group.windows {
+                        items.append(.window(window.id))
+                    }
+                }
+            }
+            for window in viewModel.singleWindowApps {
+                items.append(.window(window.id))
+            }
+            for app in viewModel.hiddenApps {
+                items.append(.hiddenApp(app.id))
+            }
+            for app in viewModel.filteredRecentlyQuitApps {
+                items.append(.recentlyQuit(app.id))
+            }
+            return items
+        }
+    }
+
+    private func removeKeyMonitorIfNeeded() {
+        if let keyDownMonitor {
+            NSEvent.removeMonitor(keyDownMonitor)
+            self.keyDownMonitor = nil
+        }
+    }
+
+    private func toggleViewMode() {
+        switch viewModel.viewMode {
+        case .browserTabs:
+            viewModel.viewMode = .windows
+        case .windows:
+            viewModel.viewMode = .browserTabs
+        }
+    }
     
     // MARK: - Mode Toggle
     
     private var modeToggleView: some View {
-        Picker("Mode", selection: $viewModel.viewMode) {
+        Picker("", selection: $viewModel.viewMode) {
             ForEach(ViewMode.allCases, id: \.self) { mode in
                 Label(mode.rawValue, systemImage: mode.icon)
                     .tag(mode)
             }
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
+        .accessibilityLabel("Mode")
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .onChange(of: viewModel.viewMode) { _, newMode in
@@ -98,7 +297,7 @@ struct MenuBarView: View {
                         .fill(Color.green)
                         .frame(width: 8, height: 8)
                     
-                    Text("macOS Windows")
+                    Text("macOS")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -122,10 +321,6 @@ struct MenuBarView: View {
             case .windows:
                 HStack(spacing: 8) {
                     Label("\(viewModel.windowCount)", systemImage: "macwindow")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Label("\(viewModel.appCount)", systemImage: "app")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -165,6 +360,12 @@ struct MenuBarView: View {
                     } else {
                         flatListView
                     }
+
+                    if !viewModel.filteredRecentlyClosedTabs.isEmpty {
+                        Divider()
+                            .padding(.vertical, 4)
+                        recentlyClosedTabsSection
+                    }
                 }
             }
             .frame(maxHeight: 400)
@@ -179,6 +380,47 @@ struct MenuBarView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
+            }
+        }
+    }
+
+    // MARK: - Recently Closed Tabs (Browser Mode)
+
+    private var recentlyClosedTabsSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("Recently Closed")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+
+                Text("(\(viewModel.filteredRecentlyClosedTabs.count))")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.primary.opacity(0.03))
+
+            Divider()
+
+            ForEach(viewModel.filteredRecentlyClosedTabs) { tab in
+                RecentlyClosedTabRowView(
+                    tab: tab,
+                    onReopen: { viewModel.reopenRecentlyClosedTab(tab) },
+                    isKeyboardSelected: keyboardSelection == .recentlyClosedTab(tab.id)
+                )
+
+                if tab.id != viewModel.filteredRecentlyClosedTabs.last?.id {
+                    Divider()
+                        .padding(.leading, 44)
+                }
             }
         }
     }
@@ -263,7 +505,12 @@ struct MenuBarView: View {
                     onToggle: { viewModel.toggleDomainExpanded(group.domain) },
                     onCloseAll: { viewModel.closeAllTabs(inDomain: group.domain) },
                     onTabActivate: { viewModel.activateTab($0) },
-                    onTabClose: { viewModel.closeTab($0) }
+                    onTabClose: { viewModel.closeTab($0) },
+                    isKeyboardSelected: keyboardSelection == .domainGroup(group.domain),
+                    selectedTabId: {
+                        if case .tab(let id) = keyboardSelection { return id }
+                        return nil
+                    }()
                 )
                 
                 Divider()
@@ -274,7 +521,8 @@ struct MenuBarView: View {
                 TabRowView(
                     tab: tab,
                     onActivate: { viewModel.activateTab(tab) },
-                    onClose: { viewModel.closeTab(tab) }
+                    onClose: { viewModel.closeTab(tab) },
+                    isKeyboardSelected: keyboardSelection == .tab(tab.id)
                 )
                 
                 if tab.id != viewModel.singleTabs.last?.id {
@@ -292,7 +540,8 @@ struct MenuBarView: View {
             TabRowView(
                 tab: tab,
                 onActivate: { viewModel.activateTab(tab) },
-                onClose: { viewModel.closeTab(tab) }
+                onClose: { viewModel.closeTab(tab) },
+                isKeyboardSelected: keyboardSelection == .tab(tab.id)
             )
             
             if tab.id != viewModel.filteredTabs.last?.id {
@@ -316,7 +565,7 @@ struct MenuBarView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         // App groups (2+ windows)
-                        ForEach(viewModel.filteredAppGroups) { group in
+                        ForEach(viewModel.filteredAppGroups, id: \.id) { group in
                             let isExpanded = viewModel.expandedApps.contains(group.id)
                             
                             AppGroupView(
@@ -325,7 +574,12 @@ struct MenuBarView: View {
                                 onToggle: { viewModel.toggleAppExpanded(group.id) },
                                 onWindowActivate: { viewModel.activateWindow($0) },
                                 onWindowHide: { viewModel.hideWindow($0) },
-                                onWindowClose: { viewModel.closeWindow($0) }
+                                onWindowClose: { viewModel.closeWindow($0) },
+                                isKeyboardSelected: keyboardSelection == .appGroup(group.id),
+                                selectedWindowId: {
+                                    if case .window(let id) = keyboardSelection { return id }
+                                    return nil
+                                }()
                             )
                             
                             Divider()
@@ -338,7 +592,8 @@ struct MenuBarView: View {
                                 showAppName: true,
                                 onActivate: { viewModel.activateWindow(window) },
                                 onHide: { viewModel.hideWindow(window) },
-                                onClose: { viewModel.closeWindow(window) }
+                                onClose: { viewModel.closeWindow(window) },
+                                isKeyboardSelected: keyboardSelection == .window(window.id)
                             )
                             
                             if window.id != viewModel.singleWindowApps.last?.id {
@@ -355,6 +610,13 @@ struct MenuBarView: View {
                                     .padding(.vertical, 4)
                             }
                             hiddenAppsSection
+                        }
+                        
+                        // Recently Quit section
+                        if !viewModel.filteredRecentlyQuitApps.isEmpty {
+                            Divider()
+                                .padding(.vertical, 4)
+                            recentlyQuitSection
                         }
                     }
                 }
@@ -406,10 +668,52 @@ struct MenuBarView: View {
             ForEach(viewModel.hiddenApps) { app in
                 HiddenAppRowView(
                     app: app,
-                    onShow: { viewModel.activateWindow(app) }
+                    onShow: { viewModel.activateWindow(app) },
+                    isKeyboardSelected: keyboardSelection == .hiddenApp(app.id)
                 )
                 
                 if app.id != viewModel.hiddenApps.last?.id {
+                    Divider()
+                        .padding(.leading, 44)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Recently Quit Section
+    
+    private var recentlyQuitSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Text("Recently Quit")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                
+                Text("(\(viewModel.filteredRecentlyQuitApps.count))")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.primary.opacity(0.03))
+            
+            Divider()
+            
+            ForEach(viewModel.filteredRecentlyQuitApps) { app in
+                RecentlyQuitRowView(
+                    app: app,
+                    onRelaunch: { viewModel.relaunchRecentlyQuit(app) },
+                    isKeyboardSelected: keyboardSelection == .recentlyQuit(app.id)
+                )
+                
+                if app.id != viewModel.filteredRecentlyQuitApps.last?.id {
                     Divider()
                         .padding(.leading, 44)
                 }

@@ -11,6 +11,7 @@ struct TabRowView: View {
     let tab: Tab
     let onActivate: () -> Void
     let onClose: () -> Void
+    var isKeyboardSelected: Bool = false
     
     @State private var isHovering = false
     
@@ -95,7 +96,7 @@ struct TabRowView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .background(isHovering ? Color.primary.opacity(0.05) : Color.clear)
+        .background((isHovering || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.10) : Color.clear)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
@@ -169,6 +170,80 @@ struct TabRowView: View {
         Button("Copy URL") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(tab.url, forType: .string)
+        }
+    }
+}
+
+// MARK: - Recently Closed Tab Row
+
+struct RecentlyClosedTabRowView: View {
+    let tab: RecentlyClosedTab
+    let onReopen: () -> Void
+    var isKeyboardSelected: Bool = false
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tab.title.isEmpty ? tab.domain : tab.title)
+                    .font(.system(.body, design: .default))
+                    .lineLimit(1)
+                
+                HStack(spacing: 6) {
+                    Text(tab.domain)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    
+                    Text("•")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    
+                    Text(tab.browserDisplayName)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    
+                    Text("•")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    
+                    Text(tab.relativeTimeText)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            
+            Spacer()
+            
+            if isHovered {
+                Button {
+                    onReopen()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.left")
+                        Text("Reopen")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+                .help("Reopen tab")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .background((isHovered || isKeyboardSelected) ? Color.accentColor.opacity(isKeyboardSelected ? 0.18 : 0.10) : Color.clear)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onTapGesture {
+            onReopen()
         }
     }
 }

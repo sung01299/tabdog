@@ -153,6 +153,9 @@ class BridgeMode {
         case "ACTIVATE_TAB":
             guard let tabId = command.tabId else { return }
             message = ["type": "ACTIVATE_TAB", "tabId": tabId, "windowId": command.windowId ?? 0]
+        case "OPEN_URL":
+            guard let url = command.url else { return }
+            message = ["type": "OPEN_URL", "url": url]
         default:
             return
         }
