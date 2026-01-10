@@ -299,7 +299,9 @@ struct SettingsView: View {
 
 // MARK: - Preview
 
+#if DEBUG
 #Preview {
     SettingsView(viewModel: TabViewModel())
 }
+#endif
 

@@ -1005,6 +1005,7 @@ struct MenuBarView: View {
 
 // MARK: - Preview
 
+#if DEBUG
 #Preview {
     MenuBarView(viewModel: {
         let vm = TabViewModel()
@@ -1012,3 +1013,4 @@ struct MenuBarView: View {
         return vm
     }())
 }
+#endif

@@ -161,6 +161,7 @@ struct DomainGroupView: View {
 
 // MARK: - Preview
 
+#if DEBUG
 #Preview {
     VStack(spacing: 0) {
         DomainGroupView(
@@ -191,3 +192,4 @@ struct DomainGroupView: View {
     }
     .frame(width: 360)
 }
+#endif
