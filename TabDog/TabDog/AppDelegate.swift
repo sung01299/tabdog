@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupPopover()
         registerGlobalHotkey()
+        
+        // Initialize launch at login (enables by default on first launch)
+        _ = LaunchAtLoginService.shared
 
         // Start background polling immediately
         viewModel.startPolling()

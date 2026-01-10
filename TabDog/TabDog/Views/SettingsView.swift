@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var viewModel: TabViewModel
     @State private var showingRegistrationSuccess = false
+    @State private var launchAtLogin = LaunchAtLoginService.shared
     
     var body: some View {
         TabView {
@@ -19,6 +20,12 @@ struct SettingsView: View {
                     Label("Connection", systemImage: "link")
                 }
             
+            // General Tab
+            generalSettingsView
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+            
             // About Tab
             aboutView
                 .tabItem {
@@ -26,6 +33,55 @@ struct SettingsView: View {
                 }
         }
         .frame(width: 480, height: 470)
+    }
+    
+    // MARK: - General Settings
+    
+    private var generalSettingsView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Preferences")
+                            .font(.headline)
+                        
+                        HStack(alignment: .center, spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.primary.opacity(0.08))
+                                    .frame(width: 26, height: 26)
+                                Image(systemName: "power")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Launch at Login")
+                                    .font(.callout.weight(.medium))
+                                Text("Start TabDog automatically when you log in")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: Binding(
+                                get: { launchAtLogin.isEnabled },
+                                set: { launchAtLogin.isEnabled = $0 }
+                            ))
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .padding(8)
+                }
+                
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+        .background(Color(NSColor.windowBackgroundColor))
     }
     
     // MARK: - Connection Settings

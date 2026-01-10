@@ -32,20 +32,21 @@ struct TabDogApp: App {
     
     /// Check if the app was launched by Chrome for Native Messaging
     private static func isLaunchedByChrome() -> Bool {
-        // Method 1: Check if stdin is a pipe (not a terminal)
-        // When Chrome launches us, stdin is connected to Chrome's pipe
-        if isatty(STDIN_FILENO) == 0 {
-            // stdin is not a terminal, likely launched by Chrome
-            // But also check we're not in Xcode debugger
-            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == nil &&
-               ProcessInfo.processInfo.environment["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] == nil {
-                return true
-            }
+        // Skip in Xcode environment
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != nil ||
+           ProcessInfo.processInfo.environment["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] != nil {
+            return false
         }
         
-        // Method 2: Check parent process
+        // Check parent process first - this is the most reliable method
         let parentPID = getppid()
         if let parentName = getProcessName(pid: parentPID) {
+            // If parent is launchd (PID 1) or common GUI launchers, it's a normal app launch
+            let guiLaunchers = ["launchd", "Finder", "Dock", "Spotlight", "open"]
+            if guiLaunchers.contains(where: { parentName.contains($0) }) || parentPID == 1 {
+                return false
+            }
+            
             // All Chromium-based browsers
             let browserProcesses = [
                 "Google Chrome", "Google Chrome Helper", "chrome",
@@ -55,7 +56,10 @@ struct TabDogApp: App {
                 "Vivaldi", "Vivaldi Helper"
             ]
             if browserProcesses.contains(where: { parentName.contains($0) }) {
-                return true
+                // Double-check: stdin should also be a pipe when launched by Chrome
+                if isatty(STDIN_FILENO) == 0 {
+                    return true
+                }
             }
         }
         

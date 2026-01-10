@@ -4,3 +4,22 @@
 
 .DS_Store
 
+# Build artifacts
+dist/
+*.dmg
+*.icns
+*.rsrc
+
+# DMG resources (generated)
+scripts/dmg-resources/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# Temporary files
+*.tmp
+rw.*.dmg
+TabDog_*.dmg
+
