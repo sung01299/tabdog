@@ -45,11 +45,13 @@ We welcome contributions from the community! Here's how you can help:
 
 1. **Fork** the repository
 2. **Clone** your fork locally
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/tabdog.git
    cd tabdog
    ```
 3. Create a **new branch** for your feature or fix
+   
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -70,6 +72,7 @@ We welcome contributions from the community! Here's how you can help:
 1. Make your changes with clear, descriptive commits
 2. Test your changes thoroughly
 3. Push to your fork
+   
    ```bash
    git push origin feature/your-feature-name
    ```
