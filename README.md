@@ -24,12 +24,16 @@ Chrome Extension ←→ Native Messaging ←→ macOS Menu Bar App
 
 ### Option 1: Direct Download (DMG)
 
-1. Download the latest `TabDog.dmg` from [GitHub Releases](https://github.com/sung01299/tabdog/releases/latest)
+<a href="https://github.com/sung01299/tabdog/releases/latest/download/TabDog.dmg">
+  <img src="https://img.shields.io/badge/Download-TabDog.dmg-blue?style=for-the-badge&logo=apple" alt="Download TabDog.dmg">
+</a>
+
+1. Click the button above or download from [GitHub Releases](https://github.com/sung01299/tabdog/releases/latest)
 2. Open the DMG file and drag TabDog to your Applications folder
 3. Install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi) from Chrome Web Store
 4. Launch TabDog from Applications
 
-### Option 2: Homebrew
+### Option 2: Homebrew (WIP)
 
 ```bash
 brew install --cask tabdog
