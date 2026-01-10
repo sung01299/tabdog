@@ -26,7 +26,7 @@ Chrome Extension ←→ Native Messaging ←→ macOS Menu Bar App
 
 1. Download the latest `TabDog.dmg` from [GitHub Releases](https://github.com/sung01299/tabdog/releases/latest)
 2. Open the DMG file and drag TabDog to your Applications folder
-3. Install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/EXTENSION_ID) from Chrome Web Store
+3. Install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi) from Chrome Web Store
 4. Launch TabDog from Applications
 
 ### Option 2: Homebrew
@@ -35,7 +35,7 @@ Chrome Extension ←→ Native Messaging ←→ macOS Menu Bar App
 brew install --cask tabdog
 ```
 
-Then install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/EXTENSION_ID) from Chrome Web Store.
+Then install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi) from Chrome Web Store.
 
 ## Contributing
 

@@ -18,10 +18,10 @@ struct HostRegistrationService {
     
     /// Production extension ID (fixed once the extension is published).
     /// Replace this constant with your real Chrome Web Store extension ID.
-    static let productionExtensionId: String = "icijhodoemiiifknenghopjfhlmbndcg"
+    static let productionExtensionId: String = "jadjicoipoakmiahodaniigoocompfpi"
     
     /// Chrome Web Store URL for the extension (used in Settings UX).
-    static let extensionStoreURL: URL? = URL(string: "https://chromewebstore.google.com/detail/icijhodoemiiifknenghopjfhlmbndcg")
+    static let extensionStoreURL: URL? = URL(string: "https://chromewebstore.google.com/detail/jadjicoipoakmiahodaniigoocompfpi")
     
     // MARK: - Supported Browsers
     
