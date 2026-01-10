@@ -10,7 +10,6 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var viewModel: TabViewModel
     @State private var showingRegistrationSuccess = false
-    @State private var showAdvanced = false
     
     var body: some View {
         TabView {
@@ -23,33 +22,22 @@ struct SettingsView: View {
             // About Tab
             aboutView
                 .tabItem {
-                    Label("About", systemImage: "info.circle")
+                    Label("Information", systemImage: "info.circle")
                 }
         }
-        .frame(width: 520, height: 380)
+        .frame(width: 480, height: 470)
     }
     
     // MARK: - Connection Settings
     
     private var connectionSettingsView: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 16) {
                 headerCard
-                
                 stepsCard
-                
                 verificationCard
-                
-                DisclosureGroup(isExpanded: $showAdvanced) {
-                    advancedCard
-                        .padding(.top, 8)
-                } label: {
-                    Label("Advanced", systemImage: "wrench.and.screwdriver")
-                        .font(.callout.weight(.semibold))
-                }
-                .padding(.top, 4)
             }
-            .padding(16)
+            .padding(20)
         }
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear { viewModel.checkHostRegistration() }
@@ -64,67 +52,60 @@ struct SettingsView: View {
     
     private var headerCard: some View {
         GroupBox {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "link.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.blue)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Connect TabDog to your browser")
-                        .font(.headline)
-                    
-                    Text("Install the extension, then run Setup once. No manual IDs.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+            HStack(alignment: .center) {
+                Text("Connection Status")
+                    .font(.headline)
                 
                 Spacer()
                 
                 statusPill
             }
+            .padding(8)
         }
     }
     
     private var statusPill: some View {
         Group {
             if viewModel.isHostRegistered {
-                Label("Ready", systemImage: "checkmark.seal.fill")
-                    .labelStyle(.titleAndIcon)
+                Text("Ready")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.green)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(.green.opacity(0.12))
                     .clipShape(Capsule())
             } else {
-                Label("Not set up", systemImage: "exclamationmark.triangle.fill")
-                    .labelStyle(.titleAndIcon)
+                Text("Not Ready")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(.orange.opacity(0.12))
                     .clipShape(Capsule())
             }
         }
-        .accessibilityLabel(viewModel.isHostRegistered ? "Ready" : "Not set up")
+        .accessibilityLabel(viewModel.isHostRegistered ? "Ready" : "Not Ready")
     }
     
     private var stepsCard: some View {
         GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text("Setup")
-                        .font(.callout.weight(.semibold))
+                        .font(.headline)
                     Spacer()
-                    Button("Refresh") { viewModel.checkHostRegistration() }
-                        .buttonStyle(.borderless)
+                    Button {
+                        viewModel.checkHostRegistration()
+                    } label: {
+                        Text("Refresh").font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
                 
                 stepRow(
                     number: 1,
                     title: "Install the Extension",
-                    subtitle: "This enables tab access and Native Messaging.",
                     systemImage: "puzzlepiece.extension",
                     trailing: AnyView(extensionLinkButton)
                 )
@@ -133,8 +114,7 @@ struct SettingsView: View {
                 
                 stepRow(
                     number: 2,
-                    title: "One‑click Setup",
-                    subtitle: "Installs Native Messaging host manifests for supported browsers.",
+                    title: "One-click Setup",
                     systemImage: "wand.and.stars",
                     trailing: AnyView(setupButtons)
                 )
@@ -143,44 +123,36 @@ struct SettingsView: View {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.caption)
                         .foregroundStyle(.red)
-                        .padding(.top, 2)
+                        .padding(.top, 4)
                 }
-                
-                Text("Tip: If your browser was already open, restart it once after Setup.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            .padding(8)
         }
     }
     
-    private func stepRow(number: Int, title: String, subtitle: String, systemImage: String, trailing: AnyView) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    private func stepRow(number: Int, title: String, systemImage: String, trailing: AnyView) -> some View {
+        HStack(alignment: .center, spacing: 12) {
             ZStack {
                 Circle()
                     .fill(Color.primary.opacity(0.08))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
                 Text("\(number)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
             
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(.secondary)
-                    Text(title)
-                        .font(.callout.weight(.semibold))
-                }
-                Text(subtitle)
-                    .font(.caption)
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
                     .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.callout.weight(.medium))
             }
             
             Spacer()
             
             trailing
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
     
     private var extensionLinkButton: some View {
@@ -207,7 +179,7 @@ struct SettingsView: View {
                     showingRegistrationSuccess = true
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             
             Button("Uninstall") {
                 viewModel.unregisterHost()
@@ -219,9 +191,9 @@ struct SettingsView: View {
     
     private var verificationCard: some View {
         GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Verification")
-                    .font(.callout.weight(.semibold))
+                    .font(.headline)
                 
                 HStack {
                     Text("Connected Browsers")
@@ -239,50 +211,15 @@ struct SettingsView: View {
                                 .foregroundStyle(ok ? .green : .secondary)
                             Text(browser.displayName)
                             Spacer()
-                            Text(ok ? "Installed" : "Not installed")
+                            Text(ok ? "Ready" : "Not installed")
                                 .font(.caption)
                                 .foregroundStyle(ok ? .secondary : .tertiary)
                         }
                     }
                 }
                 .font(.callout)
-                
-                Divider().opacity(0.6)
-                
-                HStack {
-                    Text("Extension ID")
-                    Spacer()
-                    Text(HostRegistrationService.productionExtensionId)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
             }
-        }
-    }
-    
-    private var advancedCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Manifest Paths")
-                    .font(.callout.weight(.semibold))
-                
-                ForEach(HostRegistrationService.Browser.allCases) { browser in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(browser.displayName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        
-                        Text(HostRegistrationService.hostManifestPath(for: browser).path)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                    }
-                    if browser.id != HostRegistrationService.Browser.allCases.last?.id {
-                        Divider().opacity(0.4)
-                    }
-                }
-            }
+            .padding(8)
         }
     }
     
@@ -290,15 +227,15 @@ struct SettingsView: View {
     
     private var aboutView: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 16) {
                 GroupBox {
                     HStack(alignment: .center, spacing: 14) {
-                        Image(systemName: "dog.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(.primary)
-                            .padding(10)
-                            .background(Color.primary.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        if let appIcon = NSApp.applicationIconImage {
+                            Image(nsImage: appIcon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 48, height: 48)
+                        }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("TabDog")
@@ -308,51 +245,36 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
-                            Text("Monitor and control browser tabs from your menu bar.")
+                            Text("Monitor and control browser tabs from your menu bar")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                         
                         Spacer()
                     }
+                    .padding(8)
                 }
                 
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Links")
-                            .font(.callout.weight(.semibold))
+                            .font(.headline)
                         
-                        HStack(spacing: 10) {
-                            Link(destination: URL(string: "https://github.com/user/tab-doggy")!) {
+                        HStack(spacing: 12) {
+                            Link(destination: URL(string: "https://github.com/sung01299/tabdog")!) {
                                 Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
-                                    .frame(minWidth: 140)
+                                    .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
                             
-                            Link(destination: URL(string: "https://github.com/user/tab-doggy/issues")!) {
+                            Link(destination: URL(string: "https://github.com/sung01299/tabdog/issues")!) {
                                 Label("Report Issue", systemImage: "ladybug")
-                                    .frame(minWidth: 140)
+                                    .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
                         }
                     }
-                }
-                
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("System")
-                            .font(.callout.weight(.semibold))
-                        
-                        HStack {
-                            Text("Extension ID")
-                            Spacer()
-                            Text(HostRegistrationService.productionExtensionId)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                        .font(.callout)
-                    }
+                    .padding(8)
                 }
                 
                 Spacer(minLength: 0)
@@ -361,9 +283,9 @@ struct SettingsView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 6)
+                    .padding(.top, 8)
             }
-            .padding(16)
+            .padding(20)
         }
         .background(Color(NSColor.windowBackgroundColor))
     }

@@ -882,14 +882,14 @@ struct MenuBarView: View {
     
     private var setupPromptView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "link.badge.plus")
+            Image(systemName: "link")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
             
             Text("Setup Required")
                 .font(.headline)
             
-            Text("Open Settings to configure the browser extension connection.")
+            Text("Open Settings to configure the browser extension connection")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
