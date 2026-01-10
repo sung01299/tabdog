@@ -1,8 +1,8 @@
 /**
- * TabDoggy Bridge - Chrome Extension Background Service Worker
+ * TabDog Bridge - Chrome Extension Background Service Worker
  * 
  * This service worker:
- * 1. Connects to the TabDoggy macOS app via Native Messaging
+ * 1. Connects to the TabDog macOS app via Native Messaging
  * 2. Collects tab information from Chrome
  * 3. Tracks tab creation times
  * 4. Sends updates to the app and handles commands from it
@@ -57,7 +57,7 @@ function detectBrowser() {
  * Initialize the extension on startup
  */
 async function initialize() {
-  console.log(`[TabDoggy] Initializing extension... (Browser: ${BROWSER_TYPE})`);
+  console.log(`[TabDog] Initializing extension... (Browser: ${BROWSER_TYPE})`);
   
   // Load saved tab creation times
   await loadTabCreationTimes();
@@ -75,9 +75,9 @@ async function loadTabCreationTimes() {
   try {
     const result = await chrome.storage.local.get(TAB_TIMES_KEY);
     tabCreationTimes = result[TAB_TIMES_KEY] || {};
-    console.log(`[TabDoggy] Loaded ${Object.keys(tabCreationTimes).length} tab creation times`);
+    console.log(`[TabDog] Loaded ${Object.keys(tabCreationTimes).length} tab creation times`);
   } catch (error) {
-    console.error("[TabDoggy] Failed to load tab times:", error);
+    console.error("[TabDog] Failed to load tab times:", error);
     tabCreationTimes = {};
   }
 }
@@ -89,7 +89,7 @@ async function saveTabCreationTimes() {
   try {
     await chrome.storage.local.set({ [TAB_TIMES_KEY]: tabCreationTimes });
   } catch (error) {
-    console.error("[TabDoggy] Failed to save tab times:", error);
+    console.error("[TabDog] Failed to save tab times:", error);
   }
 }
 
@@ -119,7 +119,7 @@ async function recordExistingTabs() {
   
   if (newCount > 0) {
     await saveTabCreationTimes();
-    console.log(`[TabDoggy] Recorded ${newCount} existing tabs, cleaned up old entries`);
+    console.log(`[TabDog] Recorded ${newCount} existing tabs, cleaned up old entries`);
   }
 }
 
@@ -128,11 +128,11 @@ async function recordExistingTabs() {
 // ============================================================================
 
 /**
- * Connect to the TabDoggy native macOS app
+ * Connect to the TabDog native macOS app
  */
 function connectToNativeApp() {
   try {
-    console.log(`[TabDoggy] Connecting to native host: ${HOST_NAME}`);
+    console.log(`[TabDog] Connecting to native host: ${HOST_NAME}`);
     port = chrome.runtime.connectNative(HOST_NAME);
     
     port.onMessage.addListener(handleNativeMessage);
@@ -149,9 +149,9 @@ function connectToNativeApp() {
     // Start sending updates
     startUpdates();
     
-    console.log("[TabDoggy] Connected to native app");
+    console.log("[TabDog] Connected to native app");
   } catch (error) {
-    console.error("[TabDoggy] Failed to connect:", error);
+    console.error("[TabDog] Failed to connect:", error);
   }
 }
 
@@ -160,14 +160,14 @@ function connectToNativeApp() {
  */
 function handleDisconnect() {
   const error = chrome.runtime.lastError;
-  console.log("[TabDoggy] Disconnected from native app:", error?.message || "No error");
+  console.log("[TabDog] Disconnected from native app:", error?.message || "No error");
   
   stopUpdates();
   port = null;
   
   // Try to reconnect after a delay
   setTimeout(() => {
-    console.log("[TabDoggy] Attempting to reconnect...");
+    console.log("[TabDog] Attempting to reconnect...");
     connectToNativeApp();
   }, 5000);
 }
@@ -180,7 +180,7 @@ function sendMessage(message) {
     try {
       port.postMessage(message);
     } catch (error) {
-      console.error("[TabDoggy] Failed to send message:", error);
+      console.error("[TabDog] Failed to send message:", error);
     }
   }
 }
@@ -189,7 +189,7 @@ function sendMessage(message) {
  * Handle messages from the native app
  */
 function handleNativeMessage(message) {
-  console.log("[TabDoggy] Received message:", message.type);
+  console.log("[TabDog] Received message:", message.type);
   
   switch (message.type) {
     case "CLOSE_TAB":
@@ -213,7 +213,7 @@ function handleNativeMessage(message) {
       break;
       
     default:
-      console.warn("[TabDoggy] Unknown message type:", message.type);
+      console.warn("[TabDog] Unknown message type:", message.type);
   }
 }
 
@@ -232,7 +232,7 @@ function startUpdates() {
   
   // Set up periodic updates
   updateIntervalId = setInterval(sendTabsUpdate, UPDATE_INTERVAL_MS);
-  console.log("[TabDoggy] Started periodic updates");
+  console.log("[TabDog] Started periodic updates");
 }
 
 /**
@@ -242,7 +242,7 @@ function stopUpdates() {
   if (updateIntervalId) {
     clearInterval(updateIntervalId);
     updateIntervalId = null;
-    console.log("[TabDoggy] Stopped periodic updates");
+    console.log("[TabDog] Stopped periodic updates");
   }
 }
 
@@ -264,7 +264,7 @@ async function sendTabsUpdate() {
       }
     });
   } catch (error) {
-    console.error("[TabDoggy] Failed to collect tab data:", error);
+    console.error("[TabDog] Failed to collect tab data:", error);
     sendMessage({
       type: "ERROR",
       code: "TAB_COLLECTION_FAILED",
@@ -314,10 +314,10 @@ async function closeTab(tabId) {
     await chrome.tabs.remove(tabId);
     delete tabCreationTimes[tabId];
     await saveTabCreationTimes();
-    console.log(`[TabDoggy] Closed tab ${tabId}`);
+    console.log(`[TabDog] Closed tab ${tabId}`);
     sendTabsUpdate();
   } catch (error) {
-    console.error(`[TabDoggy] Failed to close tab ${tabId}:`, error);
+    console.error(`[TabDog] Failed to close tab ${tabId}:`, error);
   }
 }
 
@@ -331,10 +331,10 @@ async function closeTabs(tabIds) {
       delete tabCreationTimes[tabId];
     }
     await saveTabCreationTimes();
-    console.log(`[TabDoggy] Closed ${tabIds.length} tabs`);
+    console.log(`[TabDog] Closed ${tabIds.length} tabs`);
     sendTabsUpdate();
   } catch (error) {
-    console.error(`[TabDoggy] Failed to close tabs:`, error);
+    console.error(`[TabDog] Failed to close tabs:`, error);
   }
 }
 
@@ -345,9 +345,9 @@ async function activateTab(tabId, windowId) {
   try {
     await chrome.windows.update(windowId, { focused: true });
     await chrome.tabs.update(tabId, { active: true });
-    console.log(`[TabDoggy] Activated tab ${tabId} in window ${windowId}`);
+    console.log(`[TabDog] Activated tab ${tabId} in window ${windowId}`);
   } catch (error) {
-    console.error(`[TabDoggy] Failed to activate tab ${tabId}:`, error);
+    console.error(`[TabDog] Failed to activate tab ${tabId}:`, error);
   }
 }
 
@@ -366,10 +366,10 @@ async function openUrl(url) {
       tabCreationTimes[created.id] = Date.now();
       await saveTabCreationTimes();
     }
-    console.log(`[TabDoggy] Opened URL: ${url}`);
+    console.log(`[TabDog] Opened URL: ${url}`);
     sendTabsUpdate();
   } catch (error) {
-    console.error(`[TabDoggy] Failed to open URL: ${url}`, error);
+    console.error(`[TabDog] Failed to open URL: ${url}`, error);
   }
 }
 
@@ -381,7 +381,7 @@ async function openUrl(url) {
 chrome.tabs.onCreated.addListener(async (tab) => {
   tabCreationTimes[tab.id] = Date.now();
   await saveTabCreationTimes();
-  console.log(`[TabDoggy] New tab created: ${tab.id}`);
+  console.log(`[TabDog] New tab created: ${tab.id}`);
   sendTabsUpdate();
 });
 
@@ -402,7 +402,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // Track when a tab becomes active (globally)
 chrome.tabs.onActivated.addListener((activeInfo) => {
   lastActiveTabId = activeInfo.tabId;
-  console.log(`[TabDoggy] Tab activated: ${activeInfo.tabId}`);
+  console.log(`[TabDog] Tab activated: ${activeInfo.tabId}`);
   sendTabsUpdate();
 });
 
@@ -417,7 +417,7 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     const tabs = await chrome.tabs.query({ active: true, windowId: windowId });
     if (tabs.length > 0) {
       lastActiveTabId = tabs[0].id;
-      console.log(`[TabDoggy] Window focus changed, active tab: ${lastActiveTabId}`);
+      console.log(`[TabDog] Window focus changed, active tab: ${lastActiveTabId}`);
       sendTabsUpdate();
     }
   } catch (error) {
@@ -428,4 +428,4 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
 // Initialize on extension load
 initialize();
 
-console.log("[TabDoggy] Background service worker loaded");
+console.log("[TabDog] Background service worker loaded");

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - TabDog Bridge</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1a1a1a;
+            --secondary-color: #666666;
+            --accent-color: #007AFF;
+            --border-color: #e5e5e5;
+            --code-bg: #f5f5f5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1a1a1a;
+                --text-color: #f5f5f5;
+                --secondary-color: #a0a0a0;
+                --accent-color: #0A84FF;
+                --border-color: #333333;
+                --code-bg: #2a2a2a;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+            border-radius: 16px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--secondary-color);
+            font-size: 1rem;
+        }
+
+        .effective-date {
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background-color: var(--code-bg);
+            border-radius: 6px;
+            display: inline-block;
+            font-size: 0.875rem;
+            color: var(--secondary-color);
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        ul {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        strong {
+            font-weight: 600;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Menlo, Monaco, monospace;
+            font-size: 0.875em;
+        }
+
+        .highlight {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .no-data {
+            background-color: var(--code-bg);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .no-data ul {
+            margin-bottom: 0;
+        }
+
+        footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--secondary-color);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="tabdog-icon.png" alt="TabDog" class="logo">
+            <h1>Privacy Policy</h1>
+            <p class="subtitle">TabDog Bridge — Chrome Extension</p>
+            <span class="effective-date">Effective Date: January 10, 2026</span>
+        </header>
+
+        <main>
+            <p>
+                TabDog Bridge ("the extension") is a companion Chrome extension for the TabDog macOS app. 
+                This policy explains what data the extension accesses and how it is used.
+            </p>
+
+            <h2>Data the Extension Accesses</h2>
+            <p>To provide its functionality, the extension accesses:</p>
+            <ul>
+                <li><strong>Tab metadata:</strong> tab URL, title, favicon URL, active state, and window/tab IDs</li>
+                <li><strong>Local timestamps:</strong> tab creation/open time (stored locally in the browser)</li>
+            </ul>
+
+            <h2>How the Data is Used</h2>
+            <p>The extension uses this data <strong>only</strong> to:</p>
+            <ul>
+                <li>Display and search tabs in the TabDog macOS app</li>
+                <li>Allow tab actions from TabDog (activate tab, close tabs)</li>
+                <li>Sort tabs by opened time</li>
+            </ul>
+
+            <h2>Data Sharing & Selling</h2>
+            <div class="no-data">
+                <ul>
+                    <li>The extension <span class="highlight">does NOT sell</span> user data</li>
+                    <li>The extension <span class="highlight">does NOT share</span> user data with third parties</li>
+                    <li>The extension <span class="highlight">does NOT transmit</span> data to any remote servers</li>
+                </ul>
+            </div>
+
+            <h2>Communication</h2>
+            <p>
+                The extension communicates <strong>only</strong> with the local TabDog macOS app using 
+                Chrome Native Messaging (<code>nativeMessaging</code> permission). 
+            </p>
+            <p>
+                This is a local-only communication channel via stdio pipes. 
+                <strong>All data stays on your device.</strong>
+            </p>
+
+            <h2>Storage</h2>
+            <p>
+                Tab creation timestamps are stored in <code>chrome.storage.local</code> on your device. 
+                This data is automatically cleaned up when tabs are closed.
+            </p>
+
+            <h2>Security</h2>
+            <p>
+                The extension communicates only with the locally installed TabDog app. 
+                Users should install TabDog only from trusted sources.
+            </p>
+
+            <h2>Changes to This Policy</h2>
+            <p>
+                This policy may be updated over time. Updates will be reflected in this document 
+                with a new effective date.
+            </p>
+
+            <h2>Contact</h2>
+            <p>
+                For questions or concerns about this privacy policy, please open an issue on our 
+                <a href="https://github.com/sung01299/tabdog" target="_blank">GitHub repository</a>.
+            </p>
+        </main>
+
+        <footer>
+            <p>
+                TabDog Bridge<br>
+                <a href="https://github.com/sung01299/tabdog">GitHub</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

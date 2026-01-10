@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "TabDoggy Bridge",
+  "name": "TabDog Bridge",
   "version": "1.1.0",
-  "description": "Bridge Chrome tabs to TabDoggy macOS menu bar app",
+  "description": "Connect your browser tabs to TabDog - a powerful macOS menu bar app for managing all your tabs across browsers",
   "permissions": [
     "tabs",
-    "nativeMessaging"
+    "nativeMessaging",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js",
