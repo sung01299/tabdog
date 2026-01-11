@@ -24,7 +24,7 @@ Chrome Extension ←→ Native Messaging ←→ macOS Menu Bar App
 
 ### Option 1: Direct Download (DMG)
 
-<a href="https://github.com/sung01299/tabdog/releases/download/v1.0.0/TabDog.dmg">
+<a href="https://github.com/sung01299/tabdog/releases/download/v1.0.1/TabDog.dmg">
   <img src="https://img.shields.io/badge/Download-TabDog.dmg-blue?style=for-the-badge&logo=apple" alt="Download TabDog.dmg">
 </a>
 
