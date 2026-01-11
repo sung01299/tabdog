@@ -42,6 +42,38 @@ brew install --cask tabdog
 
 Then install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi) from Chrome Web Store.
 
+## Usage
+
+### Opening TabDog
+
+Click the TabDog icon in your menu bar to open the popup. The search field is automatically focused.
+
+### View Modes
+
+TabDog has two view modes:
+
+- **Browser Tabs**: View and manage Chrome/Brave tabs
+- **Windows**: View and manage all macOS app windows
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Switch between Browser Tabs / Windows mode |
+| `↑` / `↓` | Navigate through the list |
+| `Enter` | Activate selected item (switch to tab/window, expand group) |
+| `C` | Close selected tab or window |
+| `H` | Hide selected window (Windows mode only) |
+| `Esc` | Return to search field |
+
+### Features
+
+- **Search**: Type to filter tabs or windows by title, URL, or app name
+- **Group by Domain**: Toggle to group tabs by website domain
+- **Sort Order**: Sort tabs by most recent or oldest first
+- **Recently Closed**: Quickly reopen recently closed tabs
+- **Recently Quit**: Relaunch recently quit apps
+
 ## Contributing
 
 We welcome contributions from the community! Here's how you can help:
