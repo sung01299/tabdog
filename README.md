@@ -36,6 +36,7 @@ Chrome Extension ←→ Native Messaging ←→ macOS Menu Bar App
 ### Option 2: Homebrew
 
 ```bash
+brew tap sung01299/tabdog 
 brew install --cask tabdog
 ```
 
