@@ -4,112 +4,117 @@
   <img src="docs/tabdog-icon.png" alt="TabDog" width="128" height="128">
 </p>
 
-> Monitor and control your Chrome tabs and apps from the macOS menu bar
+> Manage all your browser tabs in one place
 
-**TabDog** is an open-source utility that bridges Google Chrome's internal tab and process information to the macOS system level. See memory usage at a glance, close tabs without switching windows, and keep your browser under control.
+**TabDog** is an open-source browser extension that helps you manage your tabs efficiently. Search, group by domain, and quickly switch between tabs without losing focus.
 
-## Architecture
+## Features
 
-```
-Chrome Extension ←→ Native Messaging ←→ macOS Menu Bar App
-     (Data)            (stdio)              (SwiftUI)
-```
-
-## Requirements
-
-- macOS 13 Ventura or later
-- Google Chrome 116 or later
+- **Quick Search** - Find any tab instantly by title, URL, or domain
+- **Domain Grouping** - Automatically group tabs by website domain
+- **Smart Sorting** - Sort tabs by newest or oldest first
+- **Recently Closed** - Quickly reopen tabs you accidentally closed
+- **Keyboard Navigation** - Navigate and manage tabs without touching your mouse
+- **Dark/Light Mode** - Automatically matches your system preference
 
 ## Installation
 
-### Option 1: Direct Download (DMG)
+### Chrome Web Store
 
-<a href="https://github.com/sung01299/tabdog/releases/download/v1.0.1/TabDog.dmg">
-  <img src="https://img.shields.io/badge/Download-TabDog.dmg-blue?style=for-the-badge&logo=apple" alt="Download TabDog.dmg">
+<a href="https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi">
+  <img src="https://img.shields.io/badge/Install-Chrome%20Web%20Store-blue?style=for-the-badge&logo=googlechrome" alt="Install from Chrome Web Store">
 </a>
 
-1. Click the button above or download from [GitHub Releases](https://github.com/sung01299/tabdog/releases/latest)
-2. Open the DMG file and drag TabDog to your Applications folder
-3. Install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi) from Chrome Web Store
-4. Launch TabDog from Applications
+### Manual Installation (Developer Mode)
 
-### Option 2: Homebrew
+1. Download or clone this repository
+2. Open `chrome://extensions/` in Chrome (or your Chromium-based browser)
+3. Enable "Developer mode" in the top right
+4. Click "Load unpacked" and select the `Extension/` folder
 
-```bash
-brew tap sung01299/tabdog 
-brew install --cask tabdog
-```
+### Supported Browsers
 
-Then install the [Chrome Extension](https://chrome.google.com/webstore/detail/tabdog/jadjicoipoakmiahodaniigoocompfpi) from Chrome Web Store.
+TabDog works with any Chromium-based browser:
+
+- Google Chrome
+- Brave
+- Microsoft Edge
+- Opera
+- Vivaldi
+- Arc
 
 ## Usage
 
 ### Opening TabDog
 
-Click the TabDog icon in your menu bar to open the popup. The search field is automatically focused.
+Click the TabDog icon in your browser toolbar, or use the keyboard shortcut:
 
-### View Modes
-
-TabDog has two view modes:
-
-- **Browser Tabs**: View and manage Chrome/Brave tabs
-- **Windows**: View and manage all macOS app windows
+| Platform | Shortcut |
+|----------|----------|
+| macOS | `Cmd + Shift + T` |
+| Windows/Linux | `Ctrl + Shift + T` |
 
 ### Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `Tab` | Switch between Browser Tabs / Windows mode |
 | `↑` / `↓` | Navigate through the list |
-| `Enter` | Activate selected item (switch to tab/window, expand group) |
-| `C` | Close selected tab or window |
-| `H` | Hide selected window (Windows mode only) |
-| `Esc` | Return to search field |
+| `Enter` | Activate selected tab or expand group |
+| `Delete` / `Backspace` | Close selected tab |
+| `Escape` | Return to search field |
+| `Cmd/Ctrl + F` | Focus search field |
 
 ### Features
 
-- **Search**: Type to filter tabs or windows by title, URL, or app name
-- **Group by Domain**: Toggle to group tabs by website domain
-- **Sort Order**: Sort tabs by most recent or oldest first
-- **Recently Closed**: Quickly reopen recently closed tabs
-- **Recently Quit**: Relaunch recently quit apps
+- **Search**: Type to filter tabs by title, URL, or domain
+- **Group by Domain**: Click the grid icon to group/ungroup tabs by website
+- **Sort Order**: Click the sort icon to toggle between newest and oldest first
+- **Close Tab**: Hover over a tab and click the X button
+- **Close All in Domain**: Hover over a domain group header and click "Close All"
+- **Recently Closed**: Scroll down to see and reopen recently closed tabs
 
 ## Contributing
 
-We welcome contributions from the community! Here's how you can help:
+We welcome contributions from the community!
 
 ### Getting Started
 
 1. **Fork** the repository
-2. **Clone** your fork locally
-
+2. **Clone** your fork locally:
    ```bash
    git clone https://github.com/YOUR_USERNAME/tabdog.git
    cd tabdog
    ```
-3. Create a **new branch** for your feature or fix
-   
+3. Create a **new branch** for your feature or fix:
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
 ### Development Setup
 
-#### macOS App (TabDog)
-- Open `TabDog/TabDog.xcodeproj` in Xcode
-- Build and run the project (⌘R)
+1. Navigate to `chrome://extensions/` in Chrome
+2. Enable "Developer mode"
+3. Click "Load unpacked" and select the `Extension/` folder
+4. Make changes and click the refresh icon on the extension card to reload
 
-#### Chrome Extension
-- Navigate to `chrome://extensions/` in Chrome
-- Enable "Developer mode"
-- Click "Load unpacked" and select the `Extension/` folder
+### Project Structure
+
+```
+Extension/
+├── manifest.json      # Extension configuration
+├── background.js      # Service worker (tab time tracking)
+├── popup/
+│   ├── popup.html     # Popup UI structure
+│   ├── popup.css      # Styles (light/dark mode)
+│   └── popup.js       # UI logic and interactions
+└── icons/             # Extension icons
+```
 
 ### Submitting Changes
 
 1. Make your changes with clear, descriptive commits
 2. Test your changes thoroughly
-3. Push to your fork
-   
+3. Push to your fork:
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -121,7 +126,16 @@ Found a bug or have a feature request? [Open an issue](https://github.com/sung01
 - Clear description of the problem or suggestion
 - Steps to reproduce (for bugs)
 - Expected vs actual behavior
-- Your macOS and Chrome versions
+- Your browser and version
+
+## Privacy
+
+TabDog respects your privacy:
+- **No data collection** - All data stays in your browser
+- **No external servers** - Everything runs locally
+- **No tracking** - We don't track your browsing history
+
+See our [Privacy Policy](docs/privacy-policy.html) for more details.
 
 ## License
 

@@ -1,13 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "TabDog Bridge",
-  "version": "1.1.0",
-  "description": "Connect your browser tabs to TabDog - a powerful macOS menu bar app for managing all your tabs across browsers",
+  "name": "TabDog",
+  "version": "2.0.0",
+  "description": "Manage all your browser tabs in one place - search, group by domain, and quickly switch between tabs",
   "permissions": [
     "tabs",
-    "nativeMessaging",
-    "storage"
+    "storage",
+    "sessions"
   ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "TabDog - Tab Manager"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -16,6 +25,15 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
+      },
+      "description": "Open TabDog popup"
+    }
   },
   "minimum_chrome_version": "116"
 }

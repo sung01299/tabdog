@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TabDog</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <span class="status-indicator" id="statusIndicator"></span>
+        <span class="status-text" id="statusText">Loading...</span>
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-container">
+        <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+        </svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Search tabs..." autofocus>
+        <button class="clear-btn" id="clearSearch" title="Clear search">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab List -->
+    <main class="tab-list" id="tabList">
+      <div class="loading" id="loadingState">
+        <div class="spinner"></div>
+        <span>Loading tabs...</span>
+      </div>
+      <div class="empty-state" id="emptyState" style="display: none;">
+        <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
+        </svg>
+        <span>No tabs found</span>
+      </div>
+      <!-- Tab items will be rendered here -->
+    </main>
+
+    <!-- Recently Closed Section -->
+    <section class="recently-closed-section" id="recentlyClosedSection" style="display: none;">
+      <div class="section-header" id="recentlyClosedHeader">
+        <svg class="section-chevron" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+        </svg>
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+          <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+          <path d="M8 7.5a.5.5 0 0 1 .5.5v2.5H11a.5.5 0 0 1 0 1H8a.5.5 0 0 1-.5-.5V8a.5.5 0 0 1 .5-.5z"/>
+        </svg>
+        <span>Recently Closed</span>
+        <span class="section-count" id="recentlyClosedCount">(0)</span>
+      </div>
+      <div class="recently-closed-list" id="recentlyClosedList">
+        <!-- Recently closed tabs will be rendered here -->
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <button class="footer-btn" id="refreshBtn" title="Refresh">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+          <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+        </svg>
+      </button>
+      <button class="footer-btn" id="themeBtn" title="Toggle theme">
+        <svg viewBox="0 0 16 16" fill="currentColor" id="themeIcon">
+          <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
+        </svg>
+      </button>
+      <div class="footer-spacer"></div>
+      <button class="footer-btn" id="expandCollapseBtn" title="Expand/Collapse all" style="display: none;">
+        <svg viewBox="0 0 16 16" fill="currentColor" id="expandCollapseIcon">
+          <path d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"/>
+        </svg>
+      </button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
