@@ -43,6 +43,9 @@ pnpm-debug.log*
 .env
 .env.*
 
+# Firebase config (contains API keys)
+Extension/config/firebase-config.js
+
 ################################################################################
 # Build artifacts (desktop packaging)
 ################################################################################

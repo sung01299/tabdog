@@ -3,12 +3,20 @@
  * 
  * This service worker tracks tab creation times to enable
  * duration display in the popup UI.
+ * 
+ * Also handles cloud sync with Firebase when user is logged in.
  */
 
+import { initAuth, onAuthStateChanged, getCurrentUser, signInWithGoogle, signOut } from './services/auth.js';
+import { registerDevice, updateDeviceStatus } from './services/device.js';
+import { startSync, stopSync, syncAllTabs, syncTab, removeTab } from './services/sync.js';
+
 const TAB_TIMES_KEY = "tabCreationTimes";
+const PERIODIC_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // In-memory cache of tab creation times (tabId -> timestamp)
 let tabCreationTimes = {};
+let periodicSyncInterval = null;
 
 // ============================================================================
 // INITIALIZATION
@@ -29,7 +37,65 @@ async function initialize() {
   // Update badge with tab count
   await updateBadge();
   
+  // Initialize authentication
+  await initAuth();
+  
+  // Set up auth state listener for sync
+  onAuthStateChanged(handleAuthStateChanged);
+  
   console.log("[TabDog] Extension initialized");
+}
+
+/**
+ * Handle authentication state changes
+ */
+async function handleAuthStateChanged(user) {
+  if (user) {
+    console.log("[TabDog] User logged in:", user.email);
+    
+    // Register device
+    await registerDevice(user.uid);
+    
+    // Start sync
+    await startSync();
+    
+    // Set up periodic sync
+    startPeriodicSync();
+  } else {
+    console.log("[TabDog] User logged out");
+    
+    // Stop sync
+    stopSync();
+    stopPeriodicSync();
+  }
+}
+
+/**
+ * Start periodic tab sync
+ */
+function startPeriodicSync() {
+  if (periodicSyncInterval) {
+    clearInterval(periodicSyncInterval);
+  }
+  
+  periodicSyncInterval = setInterval(async () => {
+    const user = getCurrentUser();
+    if (user) {
+      console.log("[TabDog] Running periodic sync...");
+      await syncAllTabs();
+      await updateDeviceStatus(user.uid, true);
+    }
+  }, PERIODIC_SYNC_INTERVAL_MS);
+}
+
+/**
+ * Stop periodic tab sync
+ */
+function stopPeriodicSync() {
+  if (periodicSyncInterval) {
+    clearInterval(periodicSyncInterval);
+    periodicSyncInterval = null;
+  }
 }
 
 /**
@@ -123,6 +189,21 @@ chrome.tabs.onCreated.addListener(async (tab) => {
   tabCreationTimes[tab.id] = Date.now();
   await saveTabCreationTimes();
   await updateBadge();
+  
+  // Sync new tab if logged in
+  if (getCurrentUser()) {
+    syncTab(tab);
+  }
+});
+
+// Track tab updates (URL, title changes)
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Only sync on meaningful changes
+  if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') {
+    if (getCurrentUser()) {
+      syncTab(tab);
+    }
+  }
 });
 
 // Clean up when tab is removed
@@ -130,6 +211,65 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   delete tabCreationTimes[tabId];
   await saveTabCreationTimes();
   await updateBadge();
+  
+  // Remove from sync if logged in
+  if (getCurrentUser()) {
+    await removeTab(tabId);
+  }
+});
+
+// Handle extension suspension (for cleanup)
+chrome.runtime.onSuspend.addListener(async () => {
+  const user = getCurrentUser();
+  if (user) {
+    await updateDeviceStatus(user.uid, false);
+  }
+});
+
+// Handle messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'signIn') {
+    console.log('[TabDog] Received signIn request from popup');
+    signInWithGoogle()
+      .then(user => {
+        console.log('[TabDog] Sign in successful:', user.email);
+        sendResponse({ success: true, user });
+      })
+      .catch(error => {
+        console.error('[TabDog] Sign in failed:', error);
+        sendResponse({ error: error.message });
+      });
+    return true; // Keep channel open for async response
+  }
+  
+  if (message.action === 'signOut') {
+    console.log('[TabDog] Received signOut request from popup');
+    signOut()
+      .then(() => {
+        console.log('[TabDog] Sign out successful');
+        sendResponse({ success: true });
+      })
+      .catch(error => {
+        console.error('[TabDog] Sign out failed:', error);
+        sendResponse({ error: error.message });
+      });
+    return true;
+  }
+  
+  if (message.action === 'getAuthState') {
+    const user = getCurrentUser();
+    sendResponse({ user });
+    return false;
+  }
+  
+  if (message.action === 'activateTab') {
+    const { tabId } = message;
+    chrome.tabs.get(tabId)
+      .then(tab => chrome.windows.update(tab.windowId, { focused: true }))
+      .then(() => chrome.tabs.update(tabId, { active: true }))
+      .catch(error => console.error('[TabDog] Failed to activate tab:', error));
+    return false;
+  }
 });
 
 // ============================================================================

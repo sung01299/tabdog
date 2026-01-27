@@ -9,7 +9,12 @@
  * - Tab actions (activate, close)
  * - Recently closed tabs
  * - Keyboard navigation
+ * - Authentication and cloud sync
+ * - Other devices tabs
  */
+
+import { initAuth, signInWithGoogle, signOut, onAuthStateChanged, getCurrentUser } from '../services/auth.js';
+import { getRemoteTabs, onRemoteTabsChanged } from '../services/sync.js';
 
 // ============================================================================
 // STATE
@@ -22,10 +27,14 @@ const state = {
   searchQuery: '',
   groupByDomain: true,
   expandedDomains: new Set(),
+  expandedDevices: new Set(),
   selectedIndex: -1, // -1 means search input is focused
   tabCreationTimes: {},
-  recentlyClosedExpanded: true,
+  recentlyClosedExpanded: false,
+  otherDevicesExpanded: false,
   theme: 'light', // 'light' or 'dark'
+  user: null,
+  remoteTabs: {},
 };
 
 // ============================================================================
@@ -33,6 +42,11 @@ const state = {
 // ============================================================================
 
 const elements = {
+  // Login screen
+  loginScreen: document.getElementById('loginScreen'),
+  loginBtn: document.getElementById('loginBtn'),
+  appContent: document.getElementById('appContent'),
+  // App content
   statusIndicator: document.getElementById('statusIndicator'),
   statusText: document.getElementById('statusText'),
   searchInput: document.getElementById('searchInput'),
@@ -44,11 +58,20 @@ const elements = {
   recentlyClosedHeader: document.getElementById('recentlyClosedHeader'),
   recentlyClosedCount: document.getElementById('recentlyClosedCount'),
   recentlyClosedList: document.getElementById('recentlyClosedList'),
-  refreshBtn: document.getElementById('refreshBtn'),
+  otherDevicesSection: document.getElementById('otherDevicesSection'),
+  otherDevicesHeader: document.getElementById('otherDevicesHeader'),
+  otherDevicesCount: document.getElementById('otherDevicesCount'),
+  otherDevicesList: document.getElementById('otherDevicesList'),
   themeBtn: document.getElementById('themeBtn'),
   themeIcon: document.getElementById('themeIcon'),
-  expandCollapseBtn: document.getElementById('expandCollapseBtn'),
-  expandCollapseIcon: document.getElementById('expandCollapseIcon'),
+  userMenu: document.getElementById('userMenu'),
+  userAvatar: document.getElementById('userAvatar'),
+  userMenuBtn: document.getElementById('userMenuBtn'),
+  userDropdown: document.getElementById('userDropdown'),
+  userDropdownAvatar: document.getElementById('userDropdownAvatar'),
+  userDropdownName: document.getElementById('userDropdownName'),
+  userDropdownEmail: document.getElementById('userDropdownEmail'),
+  signOutBtn: document.getElementById('signOutBtn'),
 };
 
 // ============================================================================
@@ -59,25 +82,112 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load saved preferences
   await loadPreferences();
   
-  // Load tab creation times from background
-  await loadTabCreationTimes();
+  // Quick load cached user for instant UI (before full auth init)
+  const cached = await chrome.storage.local.get(['user', 'remoteTabs']);
+  if (cached.user) {
+    state.user = cached.user;
+    if (cached.remoteTabs) {
+      state.remoteTabs = cached.remoteTabs;
+    }
+  }
+  // Always update auth UI to show correct screen
+  updateAuthUI();
   
-  // Initial load
-  await loadTabs();
-  await loadRecentlyClosed();
+  // Only load tabs if logged in
+  if (state.user) {
+    // Load tab creation times from background
+    await loadTabCreationTimes();
+    
+    // Initial load
+    await loadTabs();
+    await loadRecentlyClosed();
+  }
   
   // Setup event listeners
   setupEventListeners();
   
-  // Focus search input
-  elements.searchInput.focus();
+  // Initialize authentication (will refresh tokens in background)
+  onAuthStateChanged(handleAuthStateChanged);
+  initAuth(); // Don't await - let it run in background
+  
+  // Focus search input if logged in
+  if (state.user) {
+    elements.searchInput.focus();
+  }
 });
+
+/**
+ * Handle authentication state changes
+ */
+let initialAuthHandled = false;
+async function handleAuthStateChanged(user) {
+  // Skip first null callback if we already have cached user
+  if (!initialAuthHandled && !user && state.user) {
+    initialAuthHandled = true;
+    return;
+  }
+  initialAuthHandled = true;
+  
+  const wasLoggedOut = !state.user;
+  state.user = user;
+  updateAuthUI();
+  
+  if (user) {
+    // If just logged in, load tabs
+    if (wasLoggedOut) {
+      await loadTabCreationTimes();
+      await loadTabs();
+      await loadRecentlyClosed();
+      elements.searchInput.focus();
+    }
+    // Subscribe to remote tabs
+    onRemoteTabsChanged(handleRemoteTabsChanged);
+    // Fetch remote tabs immediately
+    getRemoteTabs();
+  } else {
+    state.remoteTabs = {};
+    renderOtherDevices();
+  }
+}
+
+/**
+ * Handle remote tabs updates
+ */
+function handleRemoteTabsChanged(remoteTabs) {
+  state.remoteTabs = remoteTabs;
+  renderOtherDevices();
+}
+
+/**
+ * Update authentication UI based on state
+ */
+function updateAuthUI() {
+  if (state.user) {
+    // Show app content, hide login screen
+    elements.loginScreen.style.display = 'none';
+    elements.appContent.style.display = 'flex';
+    
+    // Set avatar (with fallback)
+    const avatarUrl = state.user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.user.displayName || 'U')}&background=007aff&color=fff`;
+    elements.userAvatar.src = avatarUrl;
+    elements.userDropdownAvatar.src = avatarUrl;
+    elements.userDropdownName.textContent = state.user.displayName || 'User';
+    elements.userDropdownEmail.textContent = state.user.email || '';
+  } else {
+    // Show login screen, hide app content
+    elements.loginScreen.style.display = 'flex';
+    elements.appContent.style.display = 'none';
+    elements.userDropdown.style.display = 'none';
+  }
+}
 
 async function loadPreferences() {
   try {
-    const result = await chrome.storage.local.get(['expandedDomains', 'recentlyClosedExpanded', 'theme']);
+    const result = await chrome.storage.local.get(['expandedDomains', 'expandedDevices', 'recentlyClosedExpanded', 'otherDevicesExpanded', 'theme']);
     if (result.expandedDomains) state.expandedDomains = new Set(result.expandedDomains);
+    if (result.expandedDevices) state.expandedDevices = new Set(result.expandedDevices);
     if (typeof result.recentlyClosedExpanded === 'boolean') state.recentlyClosedExpanded = result.recentlyClosedExpanded;
+    if (typeof result.otherDevicesExpanded === 'boolean') state.otherDevicesExpanded = result.otherDevicesExpanded;
     if (result.theme) state.theme = result.theme;
     
     applyTheme();
@@ -91,7 +201,9 @@ async function savePreferences() {
   try {
     await chrome.storage.local.set({
       expandedDomains: Array.from(state.expandedDomains),
+      expandedDevices: Array.from(state.expandedDevices),
       recentlyClosedExpanded: state.recentlyClosedExpanded,
+      otherDevicesExpanded: state.otherDevicesExpanded,
       theme: state.theme,
     });
   } catch (error) {
@@ -177,10 +289,18 @@ function renderRecentlyClosed() {
     return;
   }
   
+  // When searching, auto-expand the section
+  const isExpanded = state.searchQuery ? true : state.recentlyClosedExpanded;
+  
   elements.recentlyClosedSection.style.display = 'block';
-  elements.recentlyClosedSection.classList.toggle('expanded', state.recentlyClosedExpanded);
-  elements.recentlyClosedHeader.classList.toggle('expanded', state.recentlyClosedExpanded);
-  elements.recentlyClosedCount.textContent = `(${filtered.length})`;
+  elements.recentlyClosedSection.classList.toggle('expanded', isExpanded);
+  elements.recentlyClosedHeader.classList.toggle('expanded', isExpanded);
+  
+  // Show filtered count vs total when searching
+  const countDisplay = state.searchQuery 
+    ? `(${filtered.length}/${state.recentlyClosed.length})`
+    : `(${filtered.length})`;
+  elements.recentlyClosedCount.textContent = countDisplay;
   
   elements.recentlyClosedList.innerHTML = filtered.map(tab => `
     <div class="recently-closed-item" data-session-id="${tab.sessionId}">
@@ -257,11 +377,16 @@ function applyFilters() {
 
 function matchesSearch(tab, query) {
   const q = query.toLowerCase();
-  return (
-    (tab.title && tab.title.toLowerCase().includes(q)) ||
-    (tab.url && tab.url.toLowerCase().includes(q)) ||
-    (tab.domain && tab.domain.toLowerCase().includes(q))
-  );
+  const titleMatch = tab.title && tab.title.toLowerCase().includes(q);
+  const urlMatch = tab.url && tab.url.toLowerCase().includes(q);
+  const domainMatch = tab.domain && tab.domain.toLowerCase().includes(q);
+  
+  // Debug: uncomment to see what's matching
+  // if (titleMatch || urlMatch || domainMatch) {
+  //   console.log('[Search] Match:', { query: q, title: tab.title, url: tab.url, domain: tab.domain, titleMatch, urlMatch, domainMatch });
+  // }
+  
+  return titleMatch || urlMatch || domainMatch;
 }
 
 function sortTabs(tabs) {
@@ -279,27 +404,202 @@ function sortTabs(tabs) {
 
 function render() {
   if (state.filteredTabs.length === 0) {
-    elements.emptyState.style.display = 'flex';
     elements.tabList.innerHTML = '';
-    elements.expandCollapseBtn.style.display = 'none';
-    return;
-  }
-  
-  elements.emptyState.style.display = 'none';
-  
-  if (state.groupByDomain) {
-    renderGrouped();
   } else {
-    renderFlat();
+    if (state.groupByDomain) {
+      renderGrouped();
+    } else {
+      renderFlat();
+    }
   }
+  
+  // Render other devices
+  renderOtherDevices();
   
   // Render recently closed
   renderRecentlyClosed();
+  
+  // Show empty state only if no results in any section
+  const hasOtherDevices = elements.otherDevicesSection.style.display !== 'none';
+  const hasRecentlyClosed = elements.recentlyClosedSection.style.display !== 'none';
+  const hasAnyResults = state.filteredTabs.length > 0 || hasOtherDevices || hasRecentlyClosed;
+  
+  elements.emptyState.style.display = hasAnyResults ? 'none' : 'flex';
+}
+
+// ============================================================================
+// OTHER DEVICES
+// ============================================================================
+
+function renderOtherDevices() {
+  // Build filtered devices data
+  const devicesWithFilteredTabs = [];
+  
+  Object.keys(state.remoteTabs).forEach(deviceId => {
+    const { device, tabs } = state.remoteTabs[deviceId];
+    if (!tabs || tabs.length === 0) return;
+    
+    // Filter tabs by search query
+    const filteredTabs = state.searchQuery
+      ? tabs.filter(tab => matchesSearch(tab, state.searchQuery))
+      : tabs;
+    
+    if (filteredTabs.length > 0) {
+      devicesWithFilteredTabs.push({
+        deviceId,
+        device,
+        tabs: filteredTabs,
+        originalTabCount: tabs.length
+      });
+    }
+  });
+  
+  if (!state.user || devicesWithFilteredTabs.length === 0) {
+    elements.otherDevicesSection.style.display = 'none';
+    return;
+  }
+  
+  // When searching, auto-expand the section
+  const isSectionExpanded = state.searchQuery ? true : state.otherDevicesExpanded;
+  
+  elements.otherDevicesSection.style.display = 'block';
+  elements.otherDevicesSection.classList.toggle('expanded', isSectionExpanded);
+  elements.otherDevicesHeader.classList.toggle('expanded', isSectionExpanded);
+  elements.otherDevicesCount.textContent = `(${devicesWithFilteredTabs.length})`;
+  
+  let html = '';
+  
+  devicesWithFilteredTabs.forEach(({ deviceId, device, tabs, originalTabCount }) => {
+    // When searching, auto-expand devices with matching tabs
+    const isExpanded = state.searchQuery ? true : state.expandedDevices.has(deviceId);
+    
+    // Determine online status based on lastSeen (within 6 minutes = online)
+    // This accounts for the 5-minute periodic sync interval
+    const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
+    const isOnline = (Date.now() - lastSeenTime) < 6 * 60 * 1000; // 6 minutes
+    
+    // Get browser icon
+    const browserIcons = {
+      chrome: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.285 9.567a.5.5 0 0 1 .683.183A3.498 3.498 0 0 0 8 11.5a3.498 3.498 0 0 0 3.032-1.75.5.5 0 1 1 .866.5A4.498 4.498 0 0 1 8 12.5a4.498 4.498 0 0 1-3.898-2.25.5.5 0 0 1 .183-.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z"/>',
+      firefox: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>',
+      edge: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>',
+      safari: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>',
+    };
+    const browserIcon = browserIcons[device.browser] || browserIcons.chrome;
+    
+    // Get relative time for display
+    const lastSeen = device.lastSeen ? getRelativeTime(lastSeenTime) : 'Unknown';
+    
+    // Show filtered count vs total when searching
+    const tabCountDisplay = state.searchQuery 
+      ? `${tabs.length}/${originalTabCount}`
+      : tabs.length;
+    
+    html += `
+      <div class="device-group ${isExpanded ? 'expanded' : ''}" data-device-id="${deviceId}">
+        <div class="device-header ${isExpanded ? 'expanded' : ''}">
+          <svg class="device-chevron" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+          <svg class="device-icon" viewBox="0 0 16 16" fill="currentColor">
+            ${browserIcon}
+          </svg>
+          <div class="device-info">
+            <div class="device-name">${escapeHtml(device.name)}</div>
+            <div class="device-meta">${isOnline ? 'Online' : lastSeen}</div>
+          </div>
+          <span class="device-status ${isOnline ? 'online' : ''}"></span>
+          <span class="device-tab-count">${tabCountDisplay}</span>
+        </div>
+        <div class="device-tabs">
+          ${tabs.map(tab => renderDeviceTabItem(tab, deviceId)).join('')}
+        </div>
+      </div>
+    `;
+  });
+  
+  elements.otherDevicesList.innerHTML = html;
+  
+  // Attach event listeners
+  attachDeviceEventListeners();
+}
+
+function renderDeviceTabItem(tab, deviceId) {
+  return `
+    <div class="device-tab-item" data-url="${escapeHtml(tab.url)}" data-device-id="${deviceId}">
+      ${tab.favIconUrl 
+        ? `<img class="device-tab-favicon" src="${escapeHtml(tab.favIconUrl)}" onerror="this.outerHTML='<svg class=\\'device-tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
+        : `<svg class="device-tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
+      }
+      <div class="device-tab-info">
+        <div class="device-tab-title">${escapeHtml(truncateTitle(tab.title || 'Untitled', 50))}</div>
+        <div class="device-tab-url">${escapeHtml(getDomain(tab.url))}</div>
+      </div>
+      <button class="open-tab-btn" title="Open in this browser">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+          <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+        </svg>
+        Open
+      </button>
+    </div>
+  `;
+}
+
+function attachDeviceEventListeners() {
+  // Device header click (expand/collapse)
+  document.querySelectorAll('.device-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const deviceId = header.closest('.device-group').dataset.deviceId;
+      toggleDevice(deviceId);
+    });
+  });
+  
+  // Device tab item click (open in current browser)
+  document.querySelectorAll('.device-tab-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (!e.target.closest('.open-tab-btn')) {
+        openRemoteTab(item.dataset.url);
+      }
+    });
+    
+    const openBtn = item.querySelector('.open-tab-btn');
+    if (openBtn) {
+      openBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openRemoteTab(item.dataset.url);
+      });
+    }
+  });
+}
+
+function toggleDevice(deviceId) {
+  if (state.expandedDevices.has(deviceId)) {
+    state.expandedDevices.delete(deviceId);
+  } else {
+    state.expandedDevices.add(deviceId);
+  }
+  savePreferences();
+  renderOtherDevices();
+}
+
+function toggleOtherDevices() {
+  state.otherDevicesExpanded = !state.otherDevicesExpanded;
+  elements.otherDevicesSection.classList.toggle('expanded', state.otherDevicesExpanded);
+  elements.otherDevicesHeader.classList.toggle('expanded', state.otherDevicesExpanded);
+  savePreferences();
+}
+
+async function openRemoteTab(url) {
+  try {
+    await chrome.tabs.create({ url, active: true });
+    window.close();
+  } catch (error) {
+    console.error('Failed to open remote tab:', error);
+  }
 }
 
 function renderFlat() {
-  elements.expandCollapseBtn.style.display = 'none';
-  
   elements.tabList.innerHTML = state.filteredTabs.map((tab, index) => 
     renderTabItem(tab, index)
   ).join('');
@@ -338,10 +638,6 @@ function renderGrouped() {
   
   // Sort single tabs
   const sortedSingleTabs = sortTabs(singleTabs);
-  
-  // Show expand/collapse button if there are groups
-  elements.expandCollapseBtn.style.display = domainGroups.length > 0 ? 'block' : 'none';
-  updateExpandCollapseIcon();
   
   // Build HTML
   let html = '';
@@ -392,8 +688,6 @@ function renderGrouped() {
 }
 
 function renderTabItem(tab, index, inGroup = false) {
-  const duration = getFormattedDuration(tab.openedAt);
-  
   return `
     <div class="tab-item ${tab.active ? 'active-tab' : ''}" data-tab-id="${tab.id}" data-index="${index}">
       ${tab.favIconUrl 
@@ -408,16 +702,6 @@ function renderTabItem(tab, index, inGroup = false) {
         </div>
         <div class="tab-meta">
           <span class="tab-domain">${escapeHtml(tab.domain)}</span>
-          ${duration ? `
-            <span class="tab-meta-separator">•</span>
-            <span class="tab-duration">
-              <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
-                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
-              </svg>
-              ${duration}
-            </span>
-          ` : ''}
         </div>
       </div>
       <button class="tab-close" title="Close tab">
@@ -449,31 +733,13 @@ function setupEventListeners() {
     applyFilters();
   });
   
-  // Refresh button
-  elements.refreshBtn.addEventListener('click', async () => {
-    await loadTabCreationTimes();
-    await loadTabs();
-    await loadRecentlyClosed();
-  });
-  
-  // Expand/Collapse all
-  elements.expandCollapseBtn.addEventListener('click', () => {
-    const domains = Array.from(document.querySelectorAll('.domain-group')).map(el => el.dataset.domain);
-    
-    if (state.expandedDomains.size === domains.length) {
-      // Collapse all
-      state.expandedDomains.clear();
-    } else {
-      // Expand all
-      domains.forEach(d => state.expandedDomains.add(d));
-    }
-    
-    savePreferences();
-    render();
-  });
-  
   // Keyboard navigation
   document.addEventListener('keydown', handleKeyDown);
+  
+  // Other devices header toggle
+  elements.otherDevicesHeader.addEventListener('click', () => {
+    toggleOtherDevices();
+  });
   
   // Recently closed header toggle
   elements.recentlyClosedHeader.addEventListener('click', () => {
@@ -483,6 +749,94 @@ function setupEventListeners() {
   // Theme toggle
   elements.themeBtn.addEventListener('click', () => {
     toggleTheme();
+  });
+  
+  // Login button - delegate to background script
+  elements.loginBtn.addEventListener('click', async () => {
+    try {
+      elements.loginBtn.disabled = true;
+      elements.loginBtn.innerHTML = `
+        <div class="btn-spinner"></div>
+        Signing in...
+      `;
+      
+      // Send message to background to handle sign in
+      // This way auth continues even if popup closes
+      const response = await chrome.runtime.sendMessage({ action: 'signIn' });
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      // Refresh auth state
+      await initAuth();
+      
+    } catch (error) {
+      console.error('Sign in failed:', error);
+      alert('Sign in failed. Please try again.');
+      
+      elements.loginBtn.disabled = false;
+      elements.loginBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Sign in with Google
+      `;
+    }
+  });
+  
+  // User menu toggle
+  elements.userMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isVisible = elements.userDropdown.style.display === 'block';
+    elements.userDropdown.style.display = isVisible ? 'none' : 'block';
+  });
+  
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.user-menu') && !e.target.closest('.user-dropdown')) {
+      elements.userDropdown.style.display = 'none';
+    }
+  });
+  
+  // Sign out button - delegate to background script
+  elements.signOutBtn.addEventListener('click', async () => {
+    try {
+      // Show loading state
+      elements.signOutBtn.disabled = true;
+      elements.signOutBtn.innerHTML = `
+        <div class="btn-spinner"></div>
+        Signing out...
+      `;
+      
+      // Send message to background to handle sign out
+      await chrome.runtime.sendMessage({ action: 'signOut' });
+      
+      // Clear local state immediately
+      state.user = null;
+      state.remoteTabs = {};
+      
+      // Update UI
+      updateAuthUI();
+      renderOtherDevices();
+      elements.userDropdown.style.display = 'none';
+      
+    } catch (error) {
+      console.error('Sign out failed:', error);
+    } finally {
+      // Reset button state
+      elements.signOutBtn.disabled = false;
+      elements.signOutBtn.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+          <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+        </svg>
+        Sign out
+      `;
+    }
   });
 }
 
@@ -530,10 +884,10 @@ function attachDomainEventListeners() {
 
 async function activateTab(tabId) {
   try {
-    const tab = await chrome.tabs.get(tabId);
-    await chrome.windows.update(tab.windowId, { focused: true });
-    await chrome.tabs.update(tabId, { active: true });
-    window.close();
+    // Send to background script to handle tab activation
+    // This ensures the tab is activated even if popup closes
+    chrome.runtime.sendMessage({ action: 'activateTab', tabId });
+    setTimeout(() => window.close(), 50);
   } catch (error) {
     console.error('Failed to activate tab:', error);
   }
@@ -646,8 +1000,24 @@ function handleKeyDown(e) {
         } else if (item.classList.contains('domain-header')) {
           const domain = item.closest('.domain-group').dataset.domain;
           toggleDomain(domain);
+        } else if (item.classList.contains('device-header')) {
+          const deviceGroup = item.closest('.device-group');
+          if (deviceGroup && deviceGroup.dataset.deviceId) {
+            toggleDevice(deviceGroup.dataset.deviceId);
+          }
+        } else if (item.classList.contains('device-tab-item')) {
+          const url = item.dataset.url;
+          if (url) {
+            openRemoteTab(url);
+          }
         } else if (item.classList.contains('section-header')) {
-          toggleRecentlyClosed();
+          // Check which section header it is
+          const section = item.closest('section');
+          if (section && section.id === 'otherDevicesSection') {
+            toggleOtherDevices();
+          } else {
+            toggleRecentlyClosed();
+          }
         }
       }
       break;
@@ -671,12 +1041,25 @@ function handleKeyDown(e) {
 }
 
 function getSelectableItems() {
-  const items = Array.from(document.querySelectorAll('.tab-item, .domain-header, .section-header, .recently-closed-item'));
+  const items = Array.from(document.querySelectorAll('.tab-item, .domain-header, .section-header, .recently-closed-item, .device-header, .device-tab-item'));
   
   return items.filter(item => {
     // If Recently Closed is collapsed, exclude its items
     if (!state.recentlyClosedExpanded && item.classList.contains('recently-closed-item')) {
       return false;
+    }
+    
+    // If Other Devices is collapsed, exclude device headers and tabs
+    if (!state.otherDevicesExpanded && (item.classList.contains('device-header') || item.classList.contains('device-tab-item'))) {
+      return false;
+    }
+    
+    // If device group is collapsed, exclude its tabs
+    if (item.classList.contains('device-tab-item')) {
+      const deviceGroup = item.closest('.device-group');
+      if (deviceGroup && !deviceGroup.classList.contains('expanded')) {
+        return false;
+      }
     }
     
     // If tab is inside a collapsed domain group, exclude it
@@ -745,18 +1128,6 @@ function updateThemeIcon() {
     elements.themeIcon.innerHTML = moonIcon;
     elements.themeBtn.title = 'Dark mode';
   }
-}
-
-function updateExpandCollapseIcon() {
-  const domains = Array.from(document.querySelectorAll('.domain-group')).map(el => el.dataset.domain);
-  const allExpanded = domains.length > 0 && state.expandedDomains.size === domains.length;
-  
-  const iconPath = allExpanded
-    ? 'M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z'
-    : 'M7.646 11.354a.5.5 0 0 1 0-.708L13.293 5H.5a.5.5 0 0 1 0-1h12.793l-5.647-5.646a.5.5 0 0 1 .708-.708l6.5 6.5a.5.5 0 0 1 0 .708l-6.5 6.5a.5.5 0 0 1-.708 0z';
-  
-  elements.expandCollapseIcon.innerHTML = `<path d="${iconPath}"/>`;
-  elements.expandCollapseBtn.title = allExpanded ? 'Collapse all' : 'Expand all';
 }
 
 // ============================================================================

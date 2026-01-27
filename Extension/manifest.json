@@ -1,13 +1,22 @@
 {
   "manifest_version": 3,
   "name": "TabDog",
-  "version": "2.0.0",
-  "description": "Manage all your browser tabs in one place - search, group by domain, and quickly switch between tabs",
+  "version": "2.1.0",
+  "description": "Manage all your browser tabs in one place - search, group by domain, sync across devices, and quickly switch between tabs",
   "permissions": [
     "tabs",
     "storage",
-    "sessions"
+    "sessions",
+    "identity"
   ],
+  "oauth2": {
+    "client_id": "853701226968-qb8v1lf4g348lbfs9flbquthm5r988ej.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "email",
+      "profile"
+    ]
+  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
