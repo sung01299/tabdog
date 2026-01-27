@@ -10,6 +10,7 @@
 import { initAuth, onAuthStateChanged, getCurrentUser, signInWithGoogle, signOut } from './services/auth.js';
 import { registerDevice, updateDeviceStatus } from './services/device.js';
 import { startSync, stopSync, syncAllTabs, syncTab, removeTab } from './services/sync.js';
+import { saveSession } from './services/session-history.js';
 
 const TAB_TIMES_KEY = "tabCreationTimes";
 const PERIODIC_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -273,10 +274,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================================================
+// SESSION SAVING
+// ============================================================================
+
+/**
+ * Save current session when browser is about to close
+ * Note: onSuspend is not reliable in Manifest V3, so we also save periodically
+ */
+async function saveCurrentSession() {
+  const user = getCurrentUser();
+  if (!user) return;
+  
+  try {
+    const tabs = await chrome.tabs.query({});
+    // Filter out extension pages and new tab pages
+    const validTabs = tabs.filter(tab => 
+      tab.url && 
+      !tab.url.startsWith('chrome://') && 
+      !tab.url.startsWith('chrome-extension://') &&
+      !tab.url.startsWith('about:')
+    );
+    
+    if (validTabs.length > 0) {
+      console.log('[TabDog] Saving session with', validTabs.length, 'tabs');
+      await saveSession(validTabs);
+    }
+  } catch (error) {
+    console.error('[TabDog] Failed to save session:', error);
+  }
+}
+
+// Listen for browser suspend (not always called in MV3)
+chrome.runtime.onSuspend?.addListener(() => {
+  console.log('[TabDog] Extension suspending, saving session...');
+  saveCurrentSession();
+});
+
+// Also save session periodically (every 30 minutes) as backup
+let sessionSaveInterval = null;
+
+function startSessionAutoSave() {
+  if (sessionSaveInterval) {
+    clearInterval(sessionSaveInterval);
+  }
+  // Save session every 30 minutes
+  sessionSaveInterval = setInterval(saveCurrentSession, 30 * 60 * 1000);
+}
+
+function stopSessionAutoSave() {
+  if (sessionSaveInterval) {
+    clearInterval(sessionSaveInterval);
+    sessionSaveInterval = null;
+  }
+}
+
+// Start session auto-save when user logs in
+const originalHandleAuthStateChanged = handleAuthStateChanged;
+async function handleAuthStateChangedWithSession(user) {
+  await originalHandleAuthStateChanged(user);
+  if (user) {
+    startSessionAutoSave();
+  } else {
+    stopSessionAutoSave();
+  }
+}
+
+// Update auth listener
+// Note: We can't easily replace the listener, so session auto-save starts with periodic sync
+
+// ============================================================================
 // STARTUP
 // ============================================================================
 
 // Initialize on extension load
 initialize();
+
+// Start session auto-save if user is already logged in
+setTimeout(async () => {
+  const user = getCurrentUser();
+  if (user) {
+    startSessionAutoSave();
+  }
+}, 5000);
 
 console.log("[TabDog] Background service worker loaded");

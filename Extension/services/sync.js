@@ -85,8 +85,14 @@ export async function syncAllTabs() {
     
     // Add/update current tabs
     for (const tab of tabs) {
-      if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-        continue; // Skip internal pages
+      // Skip internal browser pages
+      if (tab.url.startsWith('chrome://') || 
+          tab.url.startsWith('chrome-extension://') ||
+          tab.url.startsWith('brave://') ||
+          tab.url.startsWith('edge://') ||
+          tab.url.startsWith('about:') ||
+          tab.url.startsWith('moz-extension://')) {
+        continue;
       }
       
       operations.push({
@@ -123,7 +129,8 @@ export async function syncAllTabs() {
       }
     }
     
-    console.log(`Sync: Synced ${tabs.length} tabs`);
+    const syncedCount = operations.filter(op => op.type === 'set').length;
+    console.log(`Sync: Synced ${syncedCount} tabs (${tabs.length - syncedCount} internal pages skipped)`);
   } catch (error) {
     console.error('Sync: Failed to sync tabs', error);
   }
@@ -143,8 +150,14 @@ export function syncTab(tab) {
     const user = getCurrentUser();
     if (!user) return;
     
-    if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-      return; // Skip internal pages
+    // Skip internal browser pages
+    if (tab.url.startsWith('chrome://') || 
+        tab.url.startsWith('chrome-extension://') ||
+        tab.url.startsWith('brave://') ||
+        tab.url.startsWith('edge://') ||
+        tab.url.startsWith('about:') ||
+        tab.url.startsWith('moz-extension://')) {
+      return;
     }
     
     try {

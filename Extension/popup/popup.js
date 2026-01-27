@@ -15,6 +15,9 @@
 
 import { initAuth, signInWithGoogle, signOut, onAuthStateChanged, getCurrentUser } from '../services/auth.js';
 import { getRemoteTabs, onRemoteTabsChanged } from '../services/sync.js';
+import { initWorkspaces, getWorkspaces, createWorkspace, deleteWorkspace, restoreWorkspace, syncWorkspaces, onWorkspacesChanged } from '../services/workspace.js';
+import { initSessions, getSessions, getSessionsByDate, restoreSession, onSessionsChanged } from '../services/session-history.js';
+import { createShareLink, EXPIRATION_OPTIONS } from '../services/share.js';
 
 // ============================================================================
 // STATE
@@ -31,10 +34,14 @@ const state = {
   selectedIndex: -1, // -1 means search input is focused
   tabCreationTimes: {},
   recentlyClosedExpanded: false,
-  otherDevicesExpanded: false,
   theme: 'light', // 'light' or 'dark'
   user: null,
   remoteTabs: {},
+  workspaces: [],
+  sessions: [],
+  selectedWorkspaceId: null,
+  selectedTabs: new Set(), // For sharing
+  currentPage: 'tabs', // 'tabs', 'devices', 'workspaces', 'history'
 };
 
 // ============================================================================
@@ -51,6 +58,15 @@ const elements = {
   statusText: document.getElementById('statusText'),
   searchInput: document.getElementById('searchInput'),
   clearSearch: document.getElementById('clearSearch'),
+  toolbar: document.getElementById('toolbar'),
+  // Pages
+  pageContainer: document.getElementById('pageContainer'),
+  pageTabs: document.getElementById('pageTabs'),
+  pageDevices: document.getElementById('pageDevices'),
+  pageWorkspaces: document.getElementById('pageWorkspaces'),
+  pageHistory: document.getElementById('pageHistory'),
+  bottomNav: document.getElementById('bottomNav'),
+  // Tabs page
   tabList: document.getElementById('tabList'),
   loadingState: document.getElementById('loadingState'),
   emptyState: document.getElementById('emptyState'),
@@ -58,10 +74,17 @@ const elements = {
   recentlyClosedHeader: document.getElementById('recentlyClosedHeader'),
   recentlyClosedCount: document.getElementById('recentlyClosedCount'),
   recentlyClosedList: document.getElementById('recentlyClosedList'),
-  otherDevicesSection: document.getElementById('otherDevicesSection'),
-  otherDevicesHeader: document.getElementById('otherDevicesHeader'),
-  otherDevicesCount: document.getElementById('otherDevicesCount'),
+  // Devices page
   otherDevicesList: document.getElementById('otherDevicesList'),
+  emptyDevicesState: document.getElementById('emptyDevicesState'),
+  // Workspaces page
+  workspacesList: document.getElementById('workspacesList'),
+  saveWorkspaceBtn: document.getElementById('saveWorkspaceBtn'),
+  emptyWorkspacesState: document.getElementById('emptyWorkspacesState'),
+  // History page
+  sessionHistoryList: document.getElementById('sessionHistoryList'),
+  emptyHistoryState: document.getElementById('emptyHistoryState'),
+  // Theme and user
   themeBtn: document.getElementById('themeBtn'),
   themeIcon: document.getElementById('themeIcon'),
   userMenu: document.getElementById('userMenu'),
@@ -72,6 +95,33 @@ const elements = {
   userDropdownName: document.getElementById('userDropdownName'),
   userDropdownEmail: document.getElementById('userDropdownEmail'),
   signOutBtn: document.getElementById('signOutBtn'),
+  // Modals
+  saveWorkspaceModal: document.getElementById('saveWorkspaceModal'),
+  closeSaveWorkspaceModal: document.getElementById('closeSaveWorkspaceModal'),
+  workspaceName: document.getElementById('workspaceName'),
+  workspaceTabList: document.getElementById('workspaceTabList'),
+  workspaceTabCount: document.getElementById('workspaceTabCount'),
+  selectAllTabs: document.getElementById('selectAllTabs'),
+  cancelSaveWorkspace: document.getElementById('cancelSaveWorkspace'),
+  confirmSaveWorkspace: document.getElementById('confirmSaveWorkspace'),
+  shareModal: document.getElementById('shareModal'),
+  closeShareModal: document.getElementById('closeShareModal'),
+  shareTitle: document.getElementById('shareTitle'),
+  shareExpiration: document.getElementById('shareExpiration'),
+  shareTabCount: document.getElementById('shareTabCount'),
+  cancelShare: document.getElementById('cancelShare'),
+  confirmShare: document.getElementById('confirmShare'),
+  shareLinkModal: document.getElementById('shareLinkModal'),
+  closeShareLinkModal: document.getElementById('closeShareLinkModal'),
+  shareLinkUrl: document.getElementById('shareLinkUrl'),
+  copyShareLink: document.getElementById('copyShareLink'),
+  shareLinkCopied: document.getElementById('shareLinkCopied'),
+  closeShareLinkBtn: document.getElementById('closeShareLinkBtn'),
+  restoreWorkspaceModal: document.getElementById('restoreWorkspaceModal'),
+  closeRestoreWorkspaceModal: document.getElementById('closeRestoreWorkspaceModal'),
+  restoreWorkspaceName: document.getElementById('restoreWorkspaceName'),
+  restoreAdd: document.getElementById('restoreAdd'),
+  restoreReplace: document.getElementById('restoreReplace'),
 };
 
 // ============================================================================
@@ -101,6 +151,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initial load
     await loadTabs();
     await loadRecentlyClosed();
+    
+    // Load workspaces and session history
+    await loadWorkspaces();
+    await loadSessions();
   }
   
   // Setup event listeners
@@ -138,15 +192,23 @@ async function handleAuthStateChanged(user) {
       await loadTabCreationTimes();
       await loadTabs();
       await loadRecentlyClosed();
+      await loadWorkspaces();
+      await loadSessions();
       elements.searchInput.focus();
     }
     // Subscribe to remote tabs
     onRemoteTabsChanged(handleRemoteTabsChanged);
     // Fetch remote tabs immediately
     getRemoteTabs();
+    // Sync workspaces with cloud
+    syncWorkspaces();
   } else {
     state.remoteTabs = {};
+    state.workspaces = [];
+    state.sessions = [];
     renderOtherDevices();
+    renderWorkspaces();
+    renderSessionHistory();
   }
 }
 
@@ -413,16 +475,13 @@ function render() {
     }
   }
   
-  // Render other devices
-  renderOtherDevices();
-  
-  // Render recently closed
+  // Render recently closed (only on Tabs page)
   renderRecentlyClosed();
   
-  // Show empty state only if no results in any section
-  const hasOtherDevices = elements.otherDevicesSection.style.display !== 'none';
-  const hasRecentlyClosed = elements.recentlyClosedSection.style.display !== 'none';
-  const hasAnyResults = state.filteredTabs.length > 0 || hasOtherDevices || hasRecentlyClosed;
+  // Show empty state only if no results
+  const hasRecentlyClosed = elements.recentlyClosedSection && 
+    elements.recentlyClosedSection.style.display !== 'none';
+  const hasAnyResults = state.filteredTabs.length > 0 || hasRecentlyClosed;
   
   elements.emptyState.style.display = hasAnyResults ? 'none' : 'flex';
 }
@@ -432,96 +491,11 @@ function render() {
 // ============================================================================
 
 function renderOtherDevices() {
-  // Build filtered devices data
-  const devicesWithFilteredTabs = [];
-  
-  Object.keys(state.remoteTabs).forEach(deviceId => {
-    const { device, tabs } = state.remoteTabs[deviceId];
-    if (!tabs || tabs.length === 0) return;
-    
-    // Filter tabs by search query
-    const filteredTabs = state.searchQuery
-      ? tabs.filter(tab => matchesSearch(tab, state.searchQuery))
-      : tabs;
-    
-    if (filteredTabs.length > 0) {
-      devicesWithFilteredTabs.push({
-        deviceId,
-        device,
-        tabs: filteredTabs,
-        originalTabCount: tabs.length
-      });
-    }
-  });
-  
-  if (!state.user || devicesWithFilteredTabs.length === 0) {
-    elements.otherDevicesSection.style.display = 'none';
-    return;
+  // This function is now deprecated - devices are shown on a separate page
+  // Re-render devices page if currently on it
+  if (state.currentPage === 'devices') {
+    renderDevicesPage();
   }
-  
-  // When searching, auto-expand the section
-  const isSectionExpanded = state.searchQuery ? true : state.otherDevicesExpanded;
-  
-  elements.otherDevicesSection.style.display = 'block';
-  elements.otherDevicesSection.classList.toggle('expanded', isSectionExpanded);
-  elements.otherDevicesHeader.classList.toggle('expanded', isSectionExpanded);
-  elements.otherDevicesCount.textContent = `(${devicesWithFilteredTabs.length})`;
-  
-  let html = '';
-  
-  devicesWithFilteredTabs.forEach(({ deviceId, device, tabs, originalTabCount }) => {
-    // When searching, auto-expand devices with matching tabs
-    const isExpanded = state.searchQuery ? true : state.expandedDevices.has(deviceId);
-    
-    // Determine online status based on lastSeen (within 6 minutes = online)
-    // This accounts for the 5-minute periodic sync interval
-    const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
-    const isOnline = (Date.now() - lastSeenTime) < 6 * 60 * 1000; // 6 minutes
-    
-    // Get browser icon
-    const browserIcons = {
-      chrome: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.285 9.567a.5.5 0 0 1 .683.183A3.498 3.498 0 0 0 8 11.5a3.498 3.498 0 0 0 3.032-1.75.5.5 0 1 1 .866.5A4.498 4.498 0 0 1 8 12.5a4.498 4.498 0 0 1-3.898-2.25.5.5 0 0 1 .183-.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z"/>',
-      firefox: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>',
-      edge: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>',
-      safari: '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>',
-    };
-    const browserIcon = browserIcons[device.browser] || browserIcons.chrome;
-    
-    // Get relative time for display
-    const lastSeen = device.lastSeen ? getRelativeTime(lastSeenTime) : 'Unknown';
-    
-    // Show filtered count vs total when searching
-    const tabCountDisplay = state.searchQuery 
-      ? `${tabs.length}/${originalTabCount}`
-      : tabs.length;
-    
-    html += `
-      <div class="device-group ${isExpanded ? 'expanded' : ''}" data-device-id="${deviceId}">
-        <div class="device-header ${isExpanded ? 'expanded' : ''}">
-          <svg class="device-chevron" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-          </svg>
-          <svg class="device-icon" viewBox="0 0 16 16" fill="currentColor">
-            ${browserIcon}
-          </svg>
-          <div class="device-info">
-            <div class="device-name">${escapeHtml(device.name)}</div>
-            <div class="device-meta">${isOnline ? 'Online' : lastSeen}</div>
-          </div>
-          <span class="device-status ${isOnline ? 'online' : ''}"></span>
-          <span class="device-tab-count">${tabCountDisplay}</span>
-        </div>
-        <div class="device-tabs">
-          ${tabs.map(tab => renderDeviceTabItem(tab, deviceId)).join('')}
-        </div>
-      </div>
-    `;
-  });
-  
-  elements.otherDevicesList.innerHTML = html;
-  
-  // Attach event listeners
-  attachDeviceEventListeners();
 }
 
 function renderDeviceTabItem(tab, deviceId) {
@@ -736,15 +710,12 @@ function setupEventListeners() {
   // Keyboard navigation
   document.addEventListener('keydown', handleKeyDown);
   
-  // Other devices header toggle
-  elements.otherDevicesHeader.addEventListener('click', () => {
-    toggleOtherDevices();
-  });
-  
-  // Recently closed header toggle
-  elements.recentlyClosedHeader.addEventListener('click', () => {
-    toggleRecentlyClosed();
-  });
+  // Recently closed header toggle (only on Tabs page)
+  if (elements.recentlyClosedHeader) {
+    elements.recentlyClosedHeader.addEventListener('click', () => {
+      toggleRecentlyClosed();
+    });
+  }
   
   // Theme toggle
   elements.themeBtn.addEventListener('click', () => {
@@ -836,6 +807,30 @@ function setupEventListeners() {
         </svg>
         Sign out
       `;
+    }
+  });
+  
+  // Event delegation for Other Devices page
+  elements.otherDevicesList.addEventListener('click', (e) => {
+    // Device header click (expand/collapse)
+    const header = e.target.closest('.device-header');
+    if (header) {
+      const group = header.closest('.device-group');
+      const isExpanded = group.classList.contains('expanded');
+      group.classList.toggle('expanded', !isExpanded);
+      header.classList.toggle('expanded', !isExpanded);
+      const tabs = group.querySelector('.device-tabs');
+      tabs.style.display = isExpanded ? 'none' : 'block';
+      return;
+    }
+    
+    // Device tab item click (open tab)
+    const tabItem = e.target.closest('.device-tab-item');
+    if (tabItem) {
+      const url = tabItem.dataset.url;
+      if (url) {
+        openRemoteTab(url);
+      }
     }
   });
 }
@@ -1002,13 +997,36 @@ function handleKeyDown(e) {
           toggleDomain(domain);
         } else if (item.classList.contains('device-header')) {
           const deviceGroup = item.closest('.device-group');
-          if (deviceGroup && deviceGroup.dataset.deviceId) {
-            toggleDevice(deviceGroup.dataset.deviceId);
+          if (deviceGroup) {
+            const isExpanded = deviceGroup.classList.contains('expanded');
+            deviceGroup.classList.toggle('expanded', !isExpanded);
+            item.classList.toggle('expanded', !isExpanded);
+            const tabs = deviceGroup.querySelector('.device-tabs');
+            if (tabs) {
+              tabs.style.display = isExpanded ? 'none' : 'block';
+            }
           }
         } else if (item.classList.contains('device-tab-item')) {
           const url = item.dataset.url;
           if (url) {
             openRemoteTab(url);
+          }
+        } else if (item.classList.contains('workspace-header')) {
+          const workspaceGroup = item.closest('.workspace-group');
+          if (workspaceGroup) {
+            const isExpanded = workspaceGroup.classList.contains('expanded');
+            workspaceGroup.classList.toggle('expanded', !isExpanded);
+            item.classList.toggle('expanded', !isExpanded);
+            const tabs = workspaceGroup.querySelector('.workspace-tabs');
+            if (tabs) {
+              tabs.style.display = isExpanded ? 'none' : 'block';
+            }
+          }
+        } else if (item.classList.contains('workspace-tab-item')) {
+          const url = item.dataset.url;
+          if (url) {
+            chrome.tabs.create({ url, active: true });
+            window.close();
           }
         } else if (item.classList.contains('section-header')) {
           // Check which section header it is
@@ -1041,7 +1059,18 @@ function handleKeyDown(e) {
 }
 
 function getSelectableItems() {
-  const items = Array.from(document.querySelectorAll('.tab-item, .domain-header, .section-header, .recently-closed-item, .device-header, .device-tab-item'));
+  let items = [];
+  
+  // Get items based on current page
+  if (state.currentPage === 'tabs') {
+    items = Array.from(document.querySelectorAll('#pageTabs .tab-item, #pageTabs .domain-header, #pageTabs .section-header, #pageTabs .recently-closed-item'));
+  } else if (state.currentPage === 'devices') {
+    items = Array.from(document.querySelectorAll('#pageDevices .device-header, #pageDevices .device-tab-item'));
+  } else if (state.currentPage === 'workspaces') {
+    items = Array.from(document.querySelectorAll('#pageWorkspaces .workspace-header, #pageWorkspaces .workspace-tab-item'));
+  } else if (state.currentPage === 'history') {
+    items = Array.from(document.querySelectorAll('#pageHistory .session-card'));
+  }
   
   return items.filter(item => {
     // If Recently Closed is collapsed, exclude its items
@@ -1049,15 +1078,18 @@ function getSelectableItems() {
       return false;
     }
     
-    // If Other Devices is collapsed, exclude device headers and tabs
-    if (!state.otherDevicesExpanded && (item.classList.contains('device-header') || item.classList.contains('device-tab-item'))) {
-      return false;
-    }
-    
     // If device group is collapsed, exclude its tabs
     if (item.classList.contains('device-tab-item')) {
       const deviceGroup = item.closest('.device-group');
       if (deviceGroup && !deviceGroup.classList.contains('expanded')) {
+        return false;
+      }
+    }
+    
+    // If workspace group is collapsed, exclude its tabs
+    if (item.classList.contains('workspace-tab-item')) {
+      const workspaceGroup = item.closest('.workspace-group');
+      if (workspaceGroup && !workspaceGroup.classList.contains('expanded')) {
         return false;
       }
     }
@@ -1185,4 +1217,549 @@ function getRelativeTime(timestamp) {
   
   const hours = Math.floor(minutes / 60);
   return `${hours}h ago`;
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (date.toDateString() === today.toDateString()) {
+    return 'Today';
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  } else {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+}
+
+function formatTime(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+// ============================================================================
+// WORKSPACES
+// ============================================================================
+
+async function loadWorkspaces() {
+  await initWorkspaces();
+  state.workspaces = getWorkspaces();
+  renderWorkspaces();
+  
+  // Subscribe to changes
+  onWorkspacesChanged((workspaces) => {
+    state.workspaces = workspaces;
+    renderWorkspaces();
+  });
+}
+
+function renderWorkspaces() {
+  // Re-render workspaces page if currently on it
+  if (state.currentPage === 'workspaces') {
+    renderWorkspacesPage();
+  }
+}
+
+function showRestoreWorkspaceModal(workspaceId) {
+  const workspace = state.workspaces.find(w => w.id === workspaceId);
+  if (!workspace) return;
+  
+  state.selectedWorkspaceId = workspaceId;
+  elements.restoreWorkspaceName.textContent = workspace.name;
+  elements.restoreWorkspaceModal.style.display = 'flex';
+}
+
+function hideRestoreWorkspaceModal() {
+  elements.restoreWorkspaceModal.style.display = 'none';
+  state.selectedWorkspaceId = null;
+}
+
+async function handleRestoreWorkspace() {
+  if (!state.selectedWorkspaceId) return;
+  
+  try {
+    await restoreWorkspace(state.selectedWorkspaceId);
+    hideRestoreWorkspaceModal();
+    window.close();
+  } catch (error) {
+    console.error('Failed to restore workspace:', error);
+    alert('Failed to restore workspace');
+  }
+}
+
+function showSaveWorkspaceModal() {
+  elements.workspaceName.value = '';
+  state.selectedTabs = new Set(state.tabs.map(t => t.id)); // Select all by default
+  
+  // Render tab selection list
+  renderWorkspaceTabList();
+  updateWorkspaceTabCount();
+  
+  elements.saveWorkspaceModal.style.display = 'flex';
+  elements.workspaceName.focus();
+}
+
+function renderWorkspaceTabList() {
+  elements.workspaceTabList.innerHTML = state.tabs.map(tab => `
+    <label class="tab-select-item">
+      <input type="checkbox" data-tab-id="${tab.id}" ${state.selectedTabs.has(tab.id) ? 'checked' : ''}>
+      ${tab.favIconUrl 
+        ? `<img src="${escapeHtml(tab.favIconUrl)}" class="tab-favicon" onerror="this.outerHTML='<div class=\\'tab-favicon default\\'><svg viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z\\'/></svg></div>'">`
+        : `<div class="tab-favicon default"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/></svg></div>`
+      }
+      <span class="tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
+    </label>
+  `).join('');
+}
+
+function updateWorkspaceTabCount() {
+  elements.workspaceTabCount.textContent = state.selectedTabs.size;
+  elements.selectAllTabs.textContent = state.selectedTabs.size === state.tabs.length ? 'Deselect All' : 'Select All';
+}
+
+function toggleAllTabsSelection() {
+  if (state.selectedTabs.size === state.tabs.length) {
+    state.selectedTabs.clear();
+  } else {
+    state.selectedTabs = new Set(state.tabs.map(t => t.id));
+  }
+  renderWorkspaceTabList();
+  updateWorkspaceTabCount();
+}
+
+function handleTabSelectionChange(e) {
+  const checkbox = e.target.closest('input[type="checkbox"]');
+  if (!checkbox) return;
+  
+  const tabId = parseInt(checkbox.dataset.tabId);
+  if (checkbox.checked) {
+    state.selectedTabs.add(tabId);
+  } else {
+    state.selectedTabs.delete(tabId);
+  }
+  updateWorkspaceTabCount();
+}
+
+function hideSaveWorkspaceModal() {
+  elements.saveWorkspaceModal.style.display = 'none';
+}
+
+async function handleSaveWorkspace() {
+  const name = elements.workspaceName.value.trim() || `Workspace ${state.workspaces.length + 1}`;
+  const selectedTabObjects = state.tabs.filter(t => state.selectedTabs.has(t.id));
+  
+  console.log('[Workspace] Saving workspace:', name, 'with', selectedTabObjects.length, 'tabs');
+  console.log('[Workspace] Selected tabs:', state.selectedTabs);
+  
+  if (selectedTabObjects.length === 0) {
+    alert('Please select at least one tab');
+    return;
+  }
+  
+  try {
+    const workspace = await createWorkspace(name, selectedTabObjects);
+    console.log('[Workspace] Created:', workspace);
+    
+    // Update local state with latest workspaces
+    state.workspaces = getWorkspaces();
+    console.log('[Workspace] Updated state.workspaces:', state.workspaces);
+    
+    hideSaveWorkspaceModal();
+    
+    // Render workspaces page
+    renderWorkspaces();
+  } catch (error) {
+    console.error('Failed to save workspace:', error);
+    alert('Failed to save workspace');
+  }
+}
+
+// ============================================================================
+// SESSION HISTORY
+// ============================================================================
+
+async function loadSessions() {
+  await initSessions();
+  state.sessions = getSessions();
+  renderSessionHistory();
+  
+  // Subscribe to changes
+  onSessionsChanged((sessions) => {
+    state.sessions = sessions;
+    renderSessionHistory();
+  });
+}
+
+function renderSessionHistory() {
+  // Re-render history page if currently on it
+  if (state.currentPage === 'history') {
+    renderHistoryPage();
+  }
+}
+
+async function restoreSessionTabs(sessionId) {
+  try {
+    await restoreSession(sessionId, 'add');
+    window.close();
+  } catch (error) {
+    console.error('Failed to restore session:', error);
+    alert('Failed to restore session');
+  }
+}
+
+// ============================================================================
+// TAB SHARING
+// ============================================================================
+
+function showShareModal() {
+  // Share all current tabs
+  elements.shareTitle.value = '';
+  elements.shareExpiration.value = '7_days';
+  elements.shareTabCount.textContent = state.tabs.length;
+  elements.shareModal.style.display = 'flex';
+}
+
+function hideShareModal() {
+  elements.shareModal.style.display = 'none';
+}
+
+async function handleCreateShare() {
+  const title = elements.shareTitle.value.trim() || undefined;
+  const expiration = elements.shareExpiration.value;
+  
+  try {
+    elements.confirmShare.disabled = true;
+    elements.confirmShare.textContent = 'Creating...';
+    
+    const result = await createShareLink(state.tabs, { title, expiration });
+    
+    hideShareModal();
+    showShareLinkModal(result.url);
+  } catch (error) {
+    console.error('Failed to create share link:', error);
+    alert('Failed to create share link: ' + error.message);
+  } finally {
+    elements.confirmShare.disabled = false;
+    elements.confirmShare.textContent = 'Create Link';
+  }
+}
+
+function showShareLinkModal(url) {
+  elements.shareLinkUrl.value = url;
+  elements.shareLinkCopied.style.display = 'none';
+  elements.shareLinkModal.style.display = 'flex';
+}
+
+function hideShareLinkModal() {
+  elements.shareLinkModal.style.display = 'none';
+}
+
+async function copyShareLink() {
+  try {
+    await navigator.clipboard.writeText(elements.shareLinkUrl.value);
+    elements.shareLinkCopied.style.display = 'block';
+    setTimeout(() => {
+      elements.shareLinkCopied.style.display = 'none';
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to copy link:', error);
+  }
+}
+
+// ============================================================================
+// NEW SECTION EVENT LISTENERS
+// ============================================================================
+
+function initWorkspaceEvents() {
+  // Save workspace button (in page header)
+  elements.saveWorkspaceBtn.addEventListener('click', showSaveWorkspaceModal);
+  
+  // Workspace list clicks
+  elements.workspacesList.addEventListener('click', handleWorkspaceCardClick);
+  
+  // Save workspace modal
+  elements.closeSaveWorkspaceModal.addEventListener('click', hideSaveWorkspaceModal);
+  elements.cancelSaveWorkspace.addEventListener('click', hideSaveWorkspaceModal);
+  elements.confirmSaveWorkspace.addEventListener('click', handleSaveWorkspace);
+  elements.selectAllTabs.addEventListener('click', toggleAllTabsSelection);
+  elements.workspaceTabList.addEventListener('change', handleTabSelectionChange);
+  
+  // Restore workspace modal
+  elements.closeRestoreWorkspaceModal.addEventListener('click', hideRestoreWorkspaceModal);
+  elements.restoreAdd.addEventListener('click', () => handleRestoreWorkspace('add'));
+  elements.restoreReplace.addEventListener('click', () => handleRestoreWorkspace('replace'));
+}
+
+function handleWorkspaceCardClick(e) {
+  const group = e.target.closest('.workspace-group');
+  if (!group) return;
+  
+  const workspaceId = group.dataset.workspaceId;
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  
+  // Handle action buttons
+  if (action === 'delete') {
+    e.stopPropagation();
+    if (confirm('Delete this workspace?')) {
+      deleteWorkspace(workspaceId);
+      state.workspaces = getWorkspaces();
+      renderWorkspacesPage();
+    }
+    return;
+  } else if (action === 'restore') {
+    e.stopPropagation();
+    restoreWorkspace(workspaceId).then(() => window.close());
+    return;
+  }
+  
+  // Handle workspace tab item click (open single tab)
+  const tabItem = e.target.closest('.workspace-tab-item');
+  if (tabItem) {
+    const url = tabItem.dataset.url;
+    if (url) {
+      chrome.tabs.create({ url, active: true });
+      window.close();
+    }
+    return;
+  }
+  
+  // Handle header click (expand/collapse)
+  const header = e.target.closest('.workspace-header');
+  if (header) {
+    const isExpanded = group.classList.contains('expanded');
+    group.classList.toggle('expanded', !isExpanded);
+    header.classList.toggle('expanded', !isExpanded);
+    const tabs = group.querySelector('.workspace-tabs');
+    tabs.style.display = isExpanded ? 'none' : 'block';
+  }
+}
+
+function initSessionHistoryEvents() {
+  // Session list clicks
+  elements.sessionHistoryList.addEventListener('click', handleSessionCardClick);
+}
+
+function handleSessionCardClick(e) {
+  const card = e.target.closest('.session-card');
+  if (!card) return;
+  
+  const sessionId = card.dataset.sessionId;
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  
+  if (action === 'restore') {
+    restoreSession(sessionId, 'add').then(() => window.close());
+  }
+}
+
+function initShareEvents() {
+  // Share modal
+  elements.closeShareModal.addEventListener('click', hideShareModal);
+  elements.cancelShare.addEventListener('click', hideShareModal);
+  elements.confirmShare.addEventListener('click', handleCreateShare);
+  
+  // Share link modal
+  elements.closeShareLinkModal.addEventListener('click', hideShareLinkModal);
+  elements.closeShareLinkBtn.addEventListener('click', hideShareLinkModal);
+  elements.copyShareLink.addEventListener('click', copyShareLink);
+}
+
+// Initialize new events
+initWorkspaceEvents();
+initSessionHistoryEvents();
+initShareEvents();
+initNavigationEvents();
+
+// ============================================================================
+// NAVIGATION
+// ============================================================================
+
+function initNavigationEvents() {
+  // Bottom navigation clicks
+  elements.bottomNav.addEventListener('click', (e) => {
+    const navItem = e.target.closest('.nav-item');
+    if (!navItem) return;
+    
+    const page = navItem.dataset.page;
+    if (page) {
+      switchPage(page);
+    }
+  });
+}
+
+function switchPage(pageName) {
+  state.currentPage = pageName;
+  
+  // Update navigation active state
+  elements.bottomNav.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.page === pageName);
+  });
+  
+  // Hide all pages
+  elements.pageTabs.style.display = 'none';
+  elements.pageDevices.style.display = 'none';
+  elements.pageWorkspaces.style.display = 'none';
+  elements.pageHistory.style.display = 'none';
+  
+  // Show selected page
+  switch (pageName) {
+    case 'tabs':
+      elements.pageTabs.style.display = 'flex';
+      elements.toolbar.style.display = 'block';
+      elements.searchInput.focus();
+      break;
+    case 'devices':
+      elements.pageDevices.style.display = 'flex';
+      elements.toolbar.style.display = 'none';
+      renderDevicesPage();
+      break;
+    case 'workspaces':
+      elements.pageWorkspaces.style.display = 'flex';
+      elements.toolbar.style.display = 'none';
+      renderWorkspacesPage();
+      break;
+    case 'history':
+      elements.pageHistory.style.display = 'flex';
+      elements.toolbar.style.display = 'none';
+      renderHistoryPage();
+      break;
+  }
+}
+
+function renderDevicesPage() {
+  // state.remoteTabs structure: { deviceId: { device: {...}, tabs: [...] } }
+  const deviceEntries = Object.entries(state.remoteTabs);
+  const devicesWithTabs = deviceEntries.filter(([id, data]) => data.tabs && data.tabs.length > 0);
+  
+  if (devicesWithTabs.length === 0) {
+    elements.otherDevicesList.innerHTML = '';
+    elements.emptyDevicesState.style.display = 'flex';
+    return;
+  }
+  
+  elements.emptyDevicesState.style.display = 'none';
+  
+  elements.otherDevicesList.innerHTML = devicesWithTabs.map(([deviceId, data]) => {
+    const device = data.device;
+    const tabs = data.tabs;
+    const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
+    const isOnline = Date.now() - lastSeenTime < 6 * 60 * 1000; // 6 minutes
+    const statusClass = isOnline ? 'online' : 'offline';
+    const statusText = isOnline ? 'Online' : 'Offline';
+    
+    return `
+      <div class="device-group expanded" data-device-id="${deviceId}">
+        <div class="device-header expanded" tabindex="0">
+          <svg class="device-chevron" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z"/>
+          </svg>
+          <svg class="device-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2z"/>
+            <path d="M6 13.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+          </svg>
+          <span class="device-name">${escapeHtml(device.name)}</span>
+          <span class="device-status ${statusClass}"></span>
+          <span class="device-tab-count">${tabs.length} tabs</span>
+        </div>
+        <div class="device-tabs" style="display: block;">
+          ${tabs.map(tab => `
+            <div class="device-tab-item" data-url="${escapeHtml(tab.url)}" data-device-id="${deviceId}">
+              ${tab.favIconUrl 
+                ? `<img class="device-tab-favicon" src="${escapeHtml(tab.favIconUrl)}" onerror="this.outerHTML='<svg class=\\'device-tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
+                : `<svg class="device-tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
+              }
+              <div class="device-tab-info">
+                <span class="device-tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
+                <span class="device-tab-url">${escapeHtml(new URL(tab.url).hostname)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+}
+
+function renderWorkspacesPage() {
+  const workspaces = state.workspaces;
+  
+  if (workspaces.length === 0) {
+    elements.workspacesList.innerHTML = '';
+    elements.emptyWorkspacesState.style.display = 'flex';
+    return;
+  }
+  
+  elements.emptyWorkspacesState.style.display = 'none';
+  
+  elements.workspacesList.innerHTML = workspaces.map(workspace => `
+    <div class="workspace-group" data-workspace-id="${workspace.id}">
+      <div class="workspace-header" tabindex="0">
+        <svg class="workspace-chevron" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z"/>
+        </svg>
+        <svg class="workspace-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
+        </svg>
+        <span class="workspace-name">${escapeHtml(workspace.name)}</span>
+        <span class="workspace-tab-count">${workspace.tabs.length} tabs</span>
+        <button class="workspace-action-btn" data-action="restore" title="Open all tabs">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+            <path d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+          </svg>
+        </button>
+        <button class="workspace-action-btn" data-action="delete" title="Delete workspace">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="workspace-tabs" style="display: none;">
+        ${workspace.tabs.map(tab => `
+          <div class="workspace-tab-item" data-url="${escapeHtml(tab.url)}">
+            ${tab.favIconUrl 
+              ? `<img class="workspace-tab-favicon" src="${escapeHtml(tab.favIconUrl)}" onerror="this.outerHTML='<svg class=\\'workspace-tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
+              : `<svg class="workspace-tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
+            }
+            <div class="workspace-tab-info">
+              <span class="workspace-tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
+              <span class="workspace-tab-url">${escapeHtml(new URL(tab.url).hostname)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderHistoryPage() {
+  const sessionsByDate = getSessionsByDate(30);
+  const dates = Object.keys(sessionsByDate).sort().reverse();
+  const totalSessions = dates.reduce((sum, date) => sum + sessionsByDate[date].length, 0);
+  
+  if (totalSessions === 0) {
+    elements.sessionHistoryList.innerHTML = '';
+    elements.emptyHistoryState.style.display = 'flex';
+    return;
+  }
+  
+  elements.emptyHistoryState.style.display = 'none';
+  
+  elements.sessionHistoryList.innerHTML = dates.map(date => `
+    <div class="session-date-group">
+      <div class="session-date-header">${formatDate(date)}</div>
+      ${sessionsByDate[date].map(session => `
+        <div class="session-card" data-session-id="${session.id}">
+          <div class="session-card-info">
+            <span class="session-card-title">${session.tabCount} tabs</span>
+            <span class="session-card-time">${formatTime(session.closedAt)}</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" data-action="restore">Restore</button>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
 }

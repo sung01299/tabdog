@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Tabs - TabDog</title>
+  <link rel="icon" type="image/png" href="tabdog-icon.png">
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f7;
+      --text-primary: #1d1d1f;
+      --text-secondary: #86868b;
+      --accent-color: #007aff;
+      --accent-hover: #0056b3;
+      --border-color: #d2d2d7;
+      --divider-color: #e8e8ed;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.15);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1c1c1e;
+        --bg-secondary: #2c2c2e;
+        --text-primary: #f5f5f7;
+        --text-secondary: #98989d;
+        --border-color: #38383a;
+        --divider-color: #38383a;
+        --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+      }
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      width: 100%;
+      max-width: 600px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+    }
+    
+    .title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    .meta {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    
+    .card {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    
+    .btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: var(--accent-color);
+      border: none;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+    
+    .btn-secondary:hover {
+      background: var(--divider-color);
+    }
+    
+    .tab-list {
+      list-style: none;
+    }
+    
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--divider-color);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .tab-item:hover {
+      background: var(--bg-secondary);
+    }
+    
+    .tab-item:last-child {
+      border-bottom: none;
+    }
+    
+    .tab-favicon {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    
+    .tab-favicon.default {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+    
+    .tab-info {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .tab-title {
+      font-size: 14px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    
+    .tab-url {
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .tab-open-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      cursor: pointer;
+      opacity: 0;
+      transition: all 0.2s;
+    }
+    
+    .tab-item:hover .tab-open-btn {
+      opacity: 1;
+    }
+    
+    .tab-open-btn:hover {
+      background: var(--accent-color);
+      border-color: var(--accent-color);
+      color: white;
+    }
+    
+    .loading, .error, .expired {
+      padding: 60px 20px;
+      text-align: center;
+    }
+    
+    .loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--divider-color);
+      border-top-color: var(--accent-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error-icon, .expired-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 16px;
+      color: var(--text-secondary);
+    }
+    
+    .error-title, .expired-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .error-message, .expired-message {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    .footer {
+      margin-top: 32px;
+      text-align: center;
+    }
+    
+    .footer a {
+      color: var(--accent-color);
+      text-decoration: none;
+      font-size: 14px;
+    }
+    
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    
+    .install-banner {
+      background: var(--bg-primary);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .install-banner-text {
+      flex: 1;
+    }
+    
+    .install-banner-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    
+    .install-banner-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <img src="tabdog-icon.png" alt="TabDog" class="logo">
+      <h1 class="title" id="shareTitle">Shared Tabs</h1>
+      <p class="subtitle" id="shareSubtitle">Loading...</p>
+      <div class="meta" id="shareMeta" style="display: none;">
+        <span id="tabCount"></span>
+        <span id="createdDate"></span>
+      </div>
+    </header>
+    
+    <main class="card" id="mainContent">
+      <div class="loading" id="loadingState">
+        <div class="loading-spinner"></div>
+        <p>Loading shared tabs...</p>
+      </div>
+      
+      <div class="error" id="errorState" style="display: none;">
+        <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p class="error-title">Unable to load</p>
+        <p class="error-message">This share link may be invalid or no longer available.</p>
+      </div>
+      
+      <div class="expired" id="expiredState" style="display: none;">
+        <svg class="expired-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <p class="expired-title">Link Expired</p>
+        <p class="expired-message">This share link has expired and is no longer available.</p>
+      </div>
+      
+      <div id="tabsContainer" style="display: none;">
+        <div class="card-header">
+          <span class="card-title">Tabs</span>
+          <button class="btn btn-primary" id="openAllBtn">Open All</button>
+        </div>
+        <ul class="tab-list" id="tabList"></ul>
+      </div>
+    </main>
+    
+    <div class="install-banner" id="installBanner" style="display: none;">
+      <div class="install-banner-text">
+        <p class="install-banner-title">Get TabDog</p>
+        <p class="install-banner-desc">Sync tabs across all your devices</p>
+      </div>
+      <a href="https://chrome.google.com/webstore" target="_blank" class="btn btn-secondary">Install</a>
+    </div>
+    
+    <footer class="footer">
+      <a href="https://github.com/user/tab-doggy" target="_blank">TabDog - Tab Sync Extension</a>
+    </footer>
+  </div>
+  
+  <script>
+    // Configuration - Update with your Firebase project ID
+    const FIREBASE_PROJECT_ID = 'YOUR_PROJECT_ID'; // Replace with actual project ID
+    const FIRESTORE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+    
+    // DOM Elements
+    const elements = {
+      shareTitle: document.getElementById('shareTitle'),
+      shareSubtitle: document.getElementById('shareSubtitle'),
+      shareMeta: document.getElementById('shareMeta'),
+      tabCount: document.getElementById('tabCount'),
+      createdDate: document.getElementById('createdDate'),
+      loadingState: document.getElementById('loadingState'),
+      errorState: document.getElementById('errorState'),
+      expiredState: document.getElementById('expiredState'),
+      tabsContainer: document.getElementById('tabsContainer'),
+      tabList: document.getElementById('tabList'),
+      openAllBtn: document.getElementById('openAllBtn'),
+      installBanner: document.getElementById('installBanner'),
+    };
+    
+    // State
+    let shareData = null;
+    
+    // Get share ID from URL
+    function getShareId() {
+      const path = window.location.pathname;
+      const match = path.match(/\/s\/([A-Za-z0-9]+)/);
+      if (match) return match[1];
+      
+      // Also check query parameter for development
+      const params = new URLSearchParams(window.location.search);
+      return params.get('id');
+    }
+    
+    // Fetch share data from Firestore
+    async function fetchShareData(shareId) {
+      try {
+        const response = await fetch(`${FIRESTORE_URL}/shares/${shareId}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('not_found');
+          }
+          throw new Error('fetch_failed');
+        }
+        
+        const doc = await response.json();
+        return parseFirestoreDoc(doc);
+      } catch (error) {
+        throw error;
+      }
+    }
+    
+    // Parse Firestore document to JS object
+    function parseFirestoreDoc(doc) {
+      if (!doc || !doc.fields) return null;
+      
+      const obj = {};
+      for (const [key, value] of Object.entries(doc.fields)) {
+        obj[key] = parseFirestoreValue(value);
+      }
+      return obj;
+    }
+    
+    function parseFirestoreValue(value) {
+      if ('stringValue' in value) return value.stringValue;
+      if ('integerValue' in value) return parseInt(value.integerValue, 10);
+      if ('doubleValue' in value) return value.doubleValue;
+      if ('booleanValue' in value) return value.booleanValue;
+      if ('nullValue' in value) return null;
+      if ('arrayValue' in value) {
+        return (value.arrayValue.values || []).map(parseFirestoreValue);
+      }
+      if ('mapValue' in value) {
+        const obj = {};
+        for (const [k, v] of Object.entries(value.mapValue.fields || {})) {
+          obj[k] = parseFirestoreValue(v);
+        }
+        return obj;
+      }
+      return null;
+    }
+    
+    // Show states
+    function showLoading() {
+      elements.loadingState.style.display = 'block';
+      elements.errorState.style.display = 'none';
+      elements.expiredState.style.display = 'none';
+      elements.tabsContainer.style.display = 'none';
+    }
+    
+    function showError() {
+      elements.loadingState.style.display = 'none';
+      elements.errorState.style.display = 'block';
+      elements.expiredState.style.display = 'none';
+      elements.tabsContainer.style.display = 'none';
+    }
+    
+    function showExpired() {
+      elements.loadingState.style.display = 'none';
+      elements.errorState.style.display = 'none';
+      elements.expiredState.style.display = 'block';
+      elements.tabsContainer.style.display = 'none';
+    }
+    
+    function showTabs() {
+      elements.loadingState.style.display = 'none';
+      elements.errorState.style.display = 'none';
+      elements.expiredState.style.display = 'none';
+      elements.tabsContainer.style.display = 'block';
+    }
+    
+    // Render tabs
+    function renderTabs(tabs) {
+      elements.tabList.innerHTML = tabs.map((tab, index) => `
+        <li class="tab-item" data-index="${index}">
+          ${tab.favIconUrl 
+            ? `<img src="${escapeHtml(tab.favIconUrl)}" class="tab-favicon" onerror="this.outerHTML='<div class=\\'tab-favicon default\\'><svg viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\' width=\\'12\\' height=\\'12\\'><path d=\\'M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zM8.5 5v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.024 7.024 0 0 0-3.072-2.472c.218.284.418.598.597.933zM10.855 4a7.966 7.966 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4h2.355z\\'/></svg></div>'">`
+            : `<div class="tab-favicon default"><svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zM8.5 5v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.024 7.024 0 0 0-3.072-2.472c.218.284.418.598.597.933zM10.855 4a7.966 7.966 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4h2.355z"/></svg></div>`
+          }
+          <div class="tab-info">
+            <div class="tab-title">${escapeHtml(tab.title || 'Untitled')}</div>
+            <div class="tab-url">${escapeHtml(getDomain(tab.url))}</div>
+          </div>
+          <button class="tab-open-btn" data-url="${escapeHtml(tab.url)}">Open</button>
+        </li>
+      `).join('');
+    }
+    
+    // Utility functions
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function getDomain(url) {
+      try {
+        return new URL(url).hostname.replace(/^www\./, '');
+      } catch {
+        return url;
+      }
+    }
+    
+    function formatDate(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+    }
+    
+    // Event handlers
+    function openTab(url) {
+      window.open(url, '_blank');
+    }
+    
+    function openAllTabs() {
+      if (!shareData || !shareData.tabs) return;
+      shareData.tabs.forEach(tab => openTab(tab.url));
+    }
+    
+    // Initialize
+    async function init() {
+      const shareId = getShareId();
+      
+      if (!shareId) {
+        showError();
+        return;
+      }
+      
+      showLoading();
+      
+      try {
+        shareData = await fetchShareData(shareId);
+        
+        if (!shareData) {
+          showError();
+          return;
+        }
+        
+        // Check if expired
+        if (shareData.expiresAt && new Date(shareData.expiresAt) < new Date()) {
+          showExpired();
+          return;
+        }
+        
+        // Update UI
+        elements.shareTitle.textContent = shareData.title || 'Shared Tabs';
+        elements.shareSubtitle.textContent = `Shared by ${shareData.creatorName || 'Anonymous'}`;
+        elements.tabCount.textContent = `${shareData.tabs.length} tabs`;
+        elements.createdDate.textContent = formatDate(shareData.createdAt);
+        elements.shareMeta.style.display = 'flex';
+        
+        // Render tabs
+        renderTabs(shareData.tabs);
+        showTabs();
+        
+        // Show install banner
+        elements.installBanner.style.display = 'flex';
+        
+      } catch (error) {
+        console.error('Failed to load share:', error);
+        if (error.message === 'not_found') {
+          showError();
+        } else {
+          showError();
+        }
+      }
+    }
+    
+    // Event listeners
+    elements.openAllBtn.addEventListener('click', openAllTabs);
+    
+    elements.tabList.addEventListener('click', (e) => {
+      const openBtn = e.target.closest('.tab-open-btn');
+      if (openBtn) {
+        openTab(openBtn.dataset.url);
+        return;
+      }
+      
+      const tabItem = e.target.closest('.tab-item');
+      if (tabItem) {
+        const index = parseInt(tabItem.dataset.index);
+        if (shareData && shareData.tabs[index]) {
+          openTab(shareData.tabs[index].url);
+        }
+      }
+    });
+    
+    // Start
+    init();
+  </script>
+</body>
+</html>

@@ -35,6 +35,11 @@
           <span class="status-text" id="statusText">Loading...</span>
         </div>
         <div class="header-right">
+          <button class="header-btn" id="themeBtn" title="Toggle theme">
+            <svg viewBox="0 0 16 16" fill="currentColor" id="themeIcon">
+              <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
+            </svg>
+          </button>
           <div class="user-menu" id="userMenu">
             <img class="user-avatar" id="userAvatar" src="" alt="User">
             <button class="user-menu-btn" id="userMenuBtn" title="Account">
@@ -65,8 +70,8 @@
       </button>
     </div>
 
-    <!-- Toolbar -->
-    <div class="toolbar">
+    <!-- Toolbar (Search) -->
+    <div class="toolbar" id="toolbar">
       <div class="search-container">
         <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor">
           <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
@@ -81,70 +86,273 @@
       </div>
     </div>
 
-    <!-- Scrollable Content Area -->
-    <div class="scrollable-content" id="scrollableContent">
-    <!-- Tab List -->
-    <main class="tab-list" id="tabList">
-      <div class="loading" id="loadingState">
-        <div class="spinner"></div>
-        <span>Loading tabs...</span>
-      </div>
-      <div class="empty-state" id="emptyState" style="display: none;">
-        <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
-        </svg>
-        <span>No tabs found</span>
-      </div>
-      <!-- Tab items will be rendered here -->
-    </main>
+    <!-- Page Content Container -->
+    <div class="page-container" id="pageContainer">
+      
+      <!-- PAGE 1: Tabs -->
+      <div class="page" id="pageTabs" data-page="tabs">
+        <div class="scrollable-content">
+          <!-- Tab List -->
+          <main class="tab-list" id="tabList">
+            <div class="loading" id="loadingState">
+              <div class="spinner"></div>
+              <span>Loading tabs...</span>
+            </div>
+            <div class="empty-state" id="emptyState" style="display: none;">
+              <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
+              </svg>
+              <span>No tabs found</span>
+            </div>
+            <!-- Tab items will be rendered here -->
+          </main>
 
-    <!-- Other Devices Section -->
-    <section class="other-devices-section" id="otherDevicesSection" style="display: none;">
-      <div class="section-header" id="otherDevicesHeader">
-        <svg class="section-chevron" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+          <!-- Recently Closed Section -->
+          <section class="recently-closed-section" id="recentlyClosedSection" style="display: none;">
+            <div class="section-header" id="recentlyClosedHeader">
+              <svg class="section-chevron" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+              </svg>
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                <path d="M8 7.5a.5.5 0 0 1 .5.5v2.5H11a.5.5 0 0 1 0 1H8a.5.5 0 0 1-.5-.5V8a.5.5 0 0 1 .5-.5z"/>
+              </svg>
+              <span>Recently Closed</span>
+              <span class="section-count" id="recentlyClosedCount">(0)</span>
+            </div>
+            <div class="recently-closed-list" id="recentlyClosedList">
+              <!-- Recently closed tabs will be rendered here -->
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- PAGE 2: Devices -->
+      <div class="page" id="pageDevices" data-page="devices" style="display: none;">
+        <div class="scrollable-content">
+          <div class="other-devices-list" id="otherDevicesList">
+            <!-- Other devices will be rendered here -->
+          </div>
+          <div class="empty-state" id="emptyDevicesState" style="display: none;">
+            <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2z"/>
+              <path d="M6 13.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+            </svg>
+            <span>No other devices</span>
+            <p class="empty-hint">Sign in on another device to see tabs here</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 3: Workspaces -->
+      <div class="page" id="pageWorkspaces" data-page="workspaces" style="display: none;">
+        <div class="scrollable-content">
+          <div class="page-header">
+            <h2 class="page-title">Workspaces</h2>
+            <button class="page-action-btn" id="saveWorkspaceBtn" title="Save current tabs as workspace">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+              </svg>
+              New
+            </button>
+          </div>
+          <div class="workspaces-list" id="workspacesList">
+            <!-- Workspaces will be rendered here -->
+          </div>
+          <div class="empty-state" id="emptyWorkspacesState" style="display: none;">
+            <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
+            </svg>
+            <span>No workspaces</span>
+            <p class="empty-hint">Save your current tabs to create a workspace</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 4: History -->
+      <div class="page" id="pageHistory" data-page="history" style="display: none;">
+        <div class="scrollable-content">
+          <div class="page-header">
+            <h2 class="page-title">Session History</h2>
+          </div>
+          <div class="session-history-list" id="sessionHistoryList">
+            <!-- Session history will be rendered here -->
+          </div>
+          <div class="empty-state" id="emptyHistoryState" style="display: none;">
+            <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933z"/>
+              <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
+              <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
+            </svg>
+            <span>No session history</span>
+            <p class="empty-hint">Sessions are saved automatically every 30 minutes</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- End of page-container -->
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav" id="bottomNav">
+      <button class="nav-item active" data-page="tabs" tabindex="-1">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/>
+          <path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
         </svg>
-        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+        <span class="nav-label">Tabs</span>
+      </button>
+      <button class="nav-item" data-page="devices" tabindex="-1">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
           <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2z"/>
           <path d="M6 13.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
         </svg>
-        <span>Other Devices</span>
-        <span class="section-count" id="otherDevicesCount">(0)</span>
-      </div>
-      <div class="other-devices-list" id="otherDevicesList">
-        <!-- Other devices will be rendered here -->
-      </div>
-    </section>
-
-    <!-- Recently Closed Section -->
-    <section class="recently-closed-section" id="recentlyClosedSection" style="display: none;">
-      <div class="section-header" id="recentlyClosedHeader">
-        <svg class="section-chevron" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-        </svg>
-        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-          <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-          <path d="M8 7.5a.5.5 0 0 1 .5.5v2.5H11a.5.5 0 0 1 0 1H8a.5.5 0 0 1-.5-.5V8a.5.5 0 0 1 .5-.5z"/>
-        </svg>
-        <span>Recently Closed</span>
-        <span class="section-count" id="recentlyClosedCount">(0)</span>
-      </div>
-      <div class="recently-closed-list" id="recentlyClosedList">
-        <!-- Recently closed tabs will be rendered here -->
-      </div>
-    </section>
-    </div><!-- End of scrollable-content -->
-
-    <!-- Footer -->
-    <footer class="footer">
-      <button class="footer-btn" id="themeBtn" title="Toggle theme">
-        <svg viewBox="0 0 16 16" fill="currentColor" id="themeIcon">
-          <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
-        </svg>
+        <span class="nav-label">Devices</span>
       </button>
-      <div class="footer-spacer"></div>
-    </footer>
+      <button class="nav-item" data-page="workspaces" tabindex="-1">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
+        </svg>
+        <span class="nav-label">Spaces</span>
+      </button>
+      <button class="nav-item" data-page="history" tabindex="-1">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
+          <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
+        </svg>
+        <span class="nav-label">History</span>
+      </button>
+    </nav>
+
+    <!-- Save Workspace Modal -->
+    <div class="modal-overlay" id="saveWorkspaceModal" style="display: none;">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3 class="modal-title">Save Workspace</h3>
+          <button class="modal-close" id="closeSaveWorkspaceModal">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="workspaceName">Workspace Name</label>
+            <input type="text" id="workspaceName" class="form-input" placeholder="My Workspace">
+          </div>
+          <div class="form-group">
+            <div class="tab-select-header">
+              <label>Select tabs to save</label>
+              <button class="select-all-btn" id="selectAllTabs">Select All</button>
+            </div>
+            <div class="tab-select-list" id="workspaceTabList">
+              <!-- Tabs will be rendered here -->
+            </div>
+          </div>
+          <div class="form-info">
+            <span id="workspaceTabCount">0</span> tabs selected
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="cancelSaveWorkspace">Cancel</button>
+          <button class="btn btn-primary" id="confirmSaveWorkspace">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share Tabs Modal -->
+    <div class="modal-overlay" id="shareModal" style="display: none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Share Tabs</h3>
+          <button class="modal-close" id="closeShareModal">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="shareTitle">Title (optional)</label>
+            <input type="text" id="shareTitle" class="form-input" placeholder="My shared tabs">
+          </div>
+          <div class="form-group">
+            <label for="shareExpiration">Expires</label>
+            <select id="shareExpiration" class="form-select">
+              <option value="7_days">In 7 days</option>
+              <option value="1_day">In 1 day</option>
+              <option value="30_days">In 30 days</option>
+              <option value="never">Never</option>
+            </select>
+          </div>
+          <div class="form-info">
+            <span id="shareTabCount">0</span> tabs will be shared
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="cancelShare">Cancel</button>
+          <button class="btn btn-primary" id="confirmShare">Create Link</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share Link Result Modal -->
+    <div class="modal-overlay" id="shareLinkModal" style="display: none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Share Link Created</h3>
+          <button class="modal-close" id="closeShareLinkModal">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="share-link-container">
+            <input type="text" id="shareLinkUrl" class="form-input" readonly>
+            <button class="btn btn-primary" id="copyShareLink">Copy</button>
+          </div>
+          <div class="share-link-copied" id="shareLinkCopied" style="display: none;">
+            Link copied to clipboard!
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="closeShareLinkBtn">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workspace Restore Modal -->
+    <div class="modal-overlay" id="restoreWorkspaceModal" style="display: none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Restore Workspace</h3>
+          <button class="modal-close" id="closeRestoreWorkspaceModal">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-text">How would you like to restore "<span id="restoreWorkspaceName"></span>"?</p>
+          <div class="restore-options">
+            <button class="restore-option" id="restoreAdd">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+              </svg>
+              <span>Add to current tabs</span>
+            </button>
+            <button class="restore-option" id="restoreReplace">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
+                <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
+              </svg>
+              <span>Replace current tabs</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     </div><!-- End of app-content -->
   </div>
 
