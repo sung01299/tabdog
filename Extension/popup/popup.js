@@ -83,6 +83,7 @@ const elements = {
   // Workspaces page
   workspacesList: document.getElementById('workspacesList'),
   saveWorkspaceBtn: document.getElementById('saveWorkspaceBtn'),
+  addWorkspaceRow: document.getElementById('addWorkspaceRow'),
   emptyWorkspacesState: document.getElementById('emptyWorkspacesState'),
   // History page
   sessionHistoryList: document.getElementById('sessionHistoryList'),

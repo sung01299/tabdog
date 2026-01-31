@@ -148,24 +148,22 @@
       <!-- PAGE 3: Workspaces -->
       <div class="page" id="pageWorkspaces" data-page="workspaces" style="display: none;">
         <div class="scrollable-content">
-          <div class="page-header">
-            <h2 class="page-title">Workspaces</h2>
-            <button class="page-action-btn" id="saveWorkspaceBtn" title="Save current tabs as workspace">
-              <svg viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
-              </svg>
-              New
-            </button>
-          </div>
           <div class="workspaces-list" id="workspacesList">
             <!-- Workspaces will be rendered here -->
           </div>
-          <div class="empty-state" id="emptyWorkspacesState" style="display: none;">
+          <div class="add-workspace-row" id="addWorkspaceRow">
+            <button class="add-workspace-btn" id="saveWorkspaceBtn">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+              </svg>
+              <span>New Workspace</span>
+            </button>
+          </div>
+          <div class="empty-state workspace-empty" id="emptyWorkspacesState" style="display: none;">
             <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
               <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
             </svg>
-            <span>No workspaces</span>
-            <p class="empty-hint">Save your current tabs to create a workspace</p>
+            <span>No Workspaces</span>
           </div>
         </div>
       </div>

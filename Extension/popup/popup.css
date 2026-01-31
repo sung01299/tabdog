@@ -518,6 +518,11 @@ html, body {
   color: var(--text-secondary);
 }
 
+.empty-state.workspace-empty {
+  height: calc(100vh - 160px);
+  padding: 0;
+}
+
 .spinner {
   width: 24px;
   height: 24px;
@@ -1325,6 +1330,44 @@ html, body {
    ============================================================================ */
 
 /* Workspace group (expandable) */
+/* Add Workspace Row */
+.add-workspace-row {
+  padding: 10px 12px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.add-workspace-row:hover {
+  opacity: 1;
+}
+
+.add-workspace-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-workspace-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.add-workspace-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .workspace-group {
   border-bottom: 1px solid var(--divider-color);
 }
