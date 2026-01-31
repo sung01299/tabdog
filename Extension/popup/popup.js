@@ -16,7 +16,7 @@
 import { initAuth, signInWithGoogle, signOut, onAuthStateChanged, getCurrentUser } from '../services/auth.js';
 import { getRemoteTabs, onRemoteTabsChanged } from '../services/sync.js';
 import { initWorkspaces, getWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, restoreWorkspace, syncWorkspaces, onWorkspacesChanged } from '../services/workspace.js';
-import { initSessions, getSessions, getSessionsByDate, restoreSession, onSessionsChanged } from '../services/session-history.js';
+// Using chrome.history API instead of custom tab-history service
 import { createShareLink, EXPIRATION_OPTIONS } from '../services/share.js';
 
 // ============================================================================
@@ -38,7 +38,7 @@ const state = {
   user: null,
   remoteTabs: {},
   workspaces: [],
-  sessions: [],
+  tabHistory: [],
   selectedWorkspaceId: null,
   selectedTabs: new Set(), // For sharing
   selectedColor: 'blue', // Default workspace color
@@ -86,6 +86,7 @@ const elements = {
   addWorkspaceRow: document.getElementById('addWorkspaceRow'),
   emptyWorkspacesState: document.getElementById('emptyWorkspacesState'),
   // History page
+  historySearchInput: document.getElementById('historySearchInput'),
   sessionHistoryList: document.getElementById('sessionHistoryList'),
   emptyHistoryState: document.getElementById('emptyHistoryState'),
   // Theme and user
@@ -159,9 +160,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadTabs();
     await loadRecentlyClosed();
     
-    // Load workspaces and session history
+    // Load workspaces and tab history
     await loadWorkspaces();
-    await loadSessions();
+    await loadTabHistory();
   }
   
   // Setup event listeners
@@ -200,7 +201,7 @@ async function handleAuthStateChanged(user) {
       await loadTabs();
       await loadRecentlyClosed();
       await loadWorkspaces();
-      await loadSessions();
+      await loadTabHistory();
       elements.searchInput.focus();
     }
     // Subscribe to remote tabs
@@ -212,10 +213,10 @@ async function handleAuthStateChanged(user) {
   } else {
     state.remoteTabs = {};
     state.workspaces = [];
-    state.sessions = [];
+    state.tabHistory = [];
     renderOtherDevices();
     renderWorkspaces();
-    renderSessionHistory();
+    renderHistoryPage();
   }
 }
 
@@ -1599,34 +1600,11 @@ async function handleSaveWorkspace() {
 // SESSION HISTORY
 // ============================================================================
 
-async function loadSessions() {
-  await initSessions();
-  state.sessions = getSessions();
-  renderSessionHistory();
-  
-  // Subscribe to changes
-  onSessionsChanged((sessions) => {
-    state.sessions = sessions;
-    renderSessionHistory();
-  });
+async function loadTabHistory() {
+  // Use browser's built-in history API
+  renderHistoryPage();
 }
 
-function renderSessionHistory() {
-  // Re-render history page if currently on it
-  if (state.currentPage === 'history') {
-    renderHistoryPage();
-  }
-}
-
-async function restoreSessionTabs(sessionId) {
-  try {
-    await restoreSession(sessionId, 'add');
-    window.close();
-  } catch (error) {
-    console.error('Failed to restore session:', error);
-    alert('Failed to restore session');
-  }
-}
 
 // ============================================================================
 // TAB SHARING
@@ -1780,19 +1758,27 @@ function handleWorkspaceCardClick(e) {
 }
 
 function initSessionHistoryEvents() {
-  // Session list clicks
-  elements.sessionHistoryList.addEventListener('click', handleSessionCardClick);
+  // History item clicks
+  elements.sessionHistoryList.addEventListener('click', handleHistoryItemClick);
+  
+  // History search
+  let historySearchTimeout;
+  elements.historySearchInput.addEventListener('input', (e) => {
+    clearTimeout(historySearchTimeout);
+    historySearchTimeout = setTimeout(() => {
+      renderHistoryPage(e.target.value.trim());
+    }, 300); // Debounce 300ms
+  });
 }
 
-function handleSessionCardClick(e) {
-  const card = e.target.closest('.session-card');
-  if (!card) return;
+function handleHistoryItemClick(e) {
+  const item = e.target.closest('.history-item');
+  if (!item) return;
   
-  const sessionId = card.dataset.sessionId;
-  const action = e.target.closest('[data-action]')?.dataset.action;
-  
-  if (action === 'restore') {
-    restoreSession(sessionId, 'add').then(() => window.close());
+  const url = item.dataset.url;
+  if (url) {
+    chrome.tabs.create({ url, active: true });
+    window.close();
   }
 }
 
@@ -1866,6 +1852,7 @@ function switchPage(pageName) {
       elements.pageHistory.style.display = 'flex';
       elements.toolbar.style.display = 'none';
       renderHistoryPage();
+      elements.historySearchInput.focus();
       break;
   }
 }
@@ -1983,12 +1970,24 @@ function renderWorkspacesPage() {
   `).join('');
 }
 
-function renderHistoryPage() {
-  const sessionsByDate = getSessionsByDate(30);
-  const dates = Object.keys(sessionsByDate).sort().reverse();
-  const totalSessions = dates.reduce((sum, date) => sum + sessionsByDate[date].length, 0);
+async function renderHistoryPage(searchText = '') {
+  // Check if history API is available
+  if (!chrome.history) {
+    elements.sessionHistoryList.innerHTML = '<div class="empty-state"><span>History API not available. Please reload the extension.</span></div>';
+    elements.emptyHistoryState.style.display = 'none';
+    return;
+  }
   
-  if (totalSessions === 0) {
+  // Get history from browser API (last 7 days, max 200 items)
+  const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  
+  const historyItems = await chrome.history.search({
+    text: searchText,
+    startTime: oneWeekAgo,
+    maxResults: 200
+  });
+  
+  if (historyItems.length === 0) {
     elements.sessionHistoryList.innerHTML = '';
     elements.emptyHistoryState.style.display = 'flex';
     return;
@@ -1996,18 +1995,34 @@ function renderHistoryPage() {
   
   elements.emptyHistoryState.style.display = 'none';
   
+  // Group by date
+  const historyByDate = {};
+  for (const item of historyItems) {
+    const date = new Date(item.lastVisitTime).toISOString().split('T')[0];
+    if (!historyByDate[date]) {
+      historyByDate[date] = [];
+    }
+    historyByDate[date].push(item);
+  }
+  
+  const dates = Object.keys(historyByDate).sort().reverse();
+  
   elements.sessionHistoryList.innerHTML = dates.map(date => `
-    <div class="session-date-group">
-      <div class="session-date-header">${formatDate(date)}</div>
-      ${sessionsByDate[date].map(session => `
-        <div class="session-card" data-session-id="${session.id}">
-          <div class="session-card-info">
-            <span class="session-card-title">${session.tabCount} tabs</span>
-            <span class="session-card-time">${formatTime(session.closedAt)}</span>
+    <div class="history-date-group">
+      <div class="history-date-header">${formatDate(date)}</div>
+      ${historyByDate[date].map(item => {
+        const domain = getDomain(item.url);
+        const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+        return `
+        <div class="history-item" data-url="${escapeHtml(item.url)}">
+          <img src="${faviconUrl}" class="tab-favicon" onerror="this.outerHTML='<svg class=\\'tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">
+          <div class="history-item-info">
+            <span class="history-item-title">${escapeHtml(item.title || domain)}</span>
+            <span class="history-item-url">${escapeHtml(domain)}</span>
           </div>
-          <button class="btn btn-secondary btn-sm" data-action="restore">Restore</button>
+          <span class="history-item-time">${formatTime(new Date(item.lastVisitTime).toISOString())}</span>
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>
   `).join('');
 }

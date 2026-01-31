@@ -15,10 +15,15 @@ import { syncWorkspaces } from './services/workspace.js';
 
 const TAB_TIMES_KEY = "tabCreationTimes";
 const SYNC_ALARM_NAME = "tabdog-sync";
+const SESSION_ALARM_NAME = "tabdog-session";
 const SYNC_INTERVAL_MINUTES = 1; // 1 minute - more frequent for better online status
+const SESSION_INTERVAL_SECONDS = 3600; // 1 hour
 
 // In-memory cache of tab creation times (tabId -> timestamp)
 let tabCreationTimes = {};
+
+// In-memory cache of tab info for history (tabId -> tab info)
+const tabInfoCache = new Map();
 
 // ============================================================================
 // INITIALIZATION
@@ -151,6 +156,13 @@ async function recordExistingTabs() {
         tabCreationTimes[tab.id] = now;
         newCount++;
       }
+      
+      // Cache tab info for history tracking
+      tabInfoCache.set(tab.id, {
+        url: tab.url,
+        title: tab.title,
+        favIconUrl: tab.favIconUrl
+      });
     }
     
     // Clean up times for tabs that no longer exist
@@ -200,6 +212,7 @@ async function updateBadge() {
 // Track new tab creation
 chrome.tabs.onCreated.addListener(async (tab) => {
   tabCreationTimes[tab.id] = Date.now();
+  tabInfoCache.set(tab.id, { url: tab.url, title: tab.title, favIconUrl: tab.favIconUrl });
   await saveTabCreationTimes();
   await updateBadge();
   
@@ -211,6 +224,15 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 
 // Track tab updates (URL, title changes)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Update tab info cache
+  const existing = tabInfoCache.get(tabId) || {};
+  
+  tabInfoCache.set(tabId, {
+    url: tab.url || existing.url,
+    title: tab.title || existing.title,
+    favIconUrl: tab.favIconUrl || existing.favIconUrl
+  });
+  
   // Only sync on meaningful changes
   if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') {
     if (getCurrentUser()) {
@@ -221,6 +243,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Clean up when tab is removed
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  tabInfoCache.delete(tabId);
+  
   delete tabCreationTimes[tabId];
   await saveTabCreationTimes();
   await updateBadge();
@@ -239,10 +263,12 @@ chrome.runtime.onSuspend.addListener(async () => {
   }
 });
 
-// Handle alarm events (for periodic sync)
+// Handle alarm events (for periodic sync and session save)
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === SYNC_ALARM_NAME) {
     await runPeriodicSync();
+  } else if (alarm.name === SESSION_ALARM_NAME) {
+    await saveCurrentSession();
   }
 });
 
@@ -329,37 +355,83 @@ chrome.runtime.onSuspend?.addListener(() => {
   saveCurrentSession();
 });
 
-// Also save session periodically (every 30 minutes) as backup
-let sessionSaveInterval = null;
+// Track window tabs before they close
+const windowTabsCache = new Map();
 
-function startSessionAutoSave() {
-  if (sessionSaveInterval) {
-    clearInterval(sessionSaveInterval);
-  }
-  // Save session every 30 minutes
-  sessionSaveInterval = setInterval(saveCurrentSession, 30 * 60 * 1000);
-}
-
-function stopSessionAutoSave() {
-  if (sessionSaveInterval) {
-    clearInterval(sessionSaveInterval);
-    sessionSaveInterval = null;
-  }
-}
-
-// Start session auto-save when user logs in
-const originalHandleAuthStateChanged = handleAuthStateChanged;
-async function handleAuthStateChangedWithSession(user) {
-  await originalHandleAuthStateChanged(user);
-  if (user) {
-    startSessionAutoSave();
-  } else {
-    stopSessionAutoSave();
+// Update window tabs cache when tabs change
+async function updateWindowTabsCache(windowId) {
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    const validTabs = tabs.filter(tab => 
+      tab.url && 
+      !tab.url.startsWith('chrome://') && 
+      !tab.url.startsWith('chrome-extension://') &&
+      !tab.url.startsWith('brave://') &&
+      !tab.url.startsWith('edge://') &&
+      !tab.url.startsWith('about:') &&
+      !tab.url.startsWith('moz-extension://')
+    );
+    if (validTabs.length > 0) {
+      windowTabsCache.set(windowId, validTabs);
+    }
+  } catch (error) {
+    // Window might be closed already
   }
 }
 
-// Update auth listener
-// Note: We can't easily replace the listener, so session auto-save starts with periodic sync
+// Update cache when tabs are created, updated, or removed
+chrome.tabs.onCreated.addListener((tab) => {
+  if (tab.windowId) updateWindowTabsCache(tab.windowId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (tab.windowId && changeInfo.url) updateWindowTabsCache(tab.windowId);
+});
+
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  if (!removeInfo.isWindowClosing && removeInfo.windowId) {
+    updateWindowTabsCache(removeInfo.windowId);
+  }
+});
+
+// Save session when window is closed
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  const user = getCurrentUser();
+  if (!user) return;
+  
+  const cachedTabs = windowTabsCache.get(windowId);
+  if (cachedTabs && cachedTabs.length > 0) {
+    console.log('[TabDog] Window closed, saving session with', cachedTabs.length, 'tabs');
+    try {
+      await saveSession(cachedTabs);
+    } catch (error) {
+      console.error('[TabDog] Failed to save window session:', error);
+    }
+  }
+  windowTabsCache.delete(windowId);
+});
+
+// Initialize cache for existing windows
+async function initWindowTabsCache() {
+  try {
+    const windows = await chrome.windows.getAll();
+    for (const window of windows) {
+      await updateWindowTabsCache(window.id);
+    }
+  } catch (error) {
+    console.error('[TabDog] Failed to init window tabs cache:', error);
+  }
+}
+
+// Initialize cache on startup
+initWindowTabsCache();
+
+// Periodic session save using alarms (more reliable than setInterval in MV3)
+// Create session save alarm (30 seconds for testing)
+chrome.alarms.create(SESSION_ALARM_NAME, { 
+  delayInMinutes: SESSION_INTERVAL_SECONDS / 60,
+  periodInMinutes: SESSION_INTERVAL_SECONDS / 60 
+});
 
 // ============================================================================
 // STARTUP
