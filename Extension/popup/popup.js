@@ -15,7 +15,7 @@
 
 import { initAuth, signInWithGoogle, signOut, onAuthStateChanged, getCurrentUser } from '../services/auth.js';
 import { getRemoteTabs, onRemoteTabsChanged } from '../services/sync.js';
-import { initWorkspaces, getWorkspaces, createWorkspace, deleteWorkspace, restoreWorkspace, syncWorkspaces, onWorkspacesChanged } from '../services/workspace.js';
+import { initWorkspaces, getWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, restoreWorkspace, syncWorkspaces, onWorkspacesChanged } from '../services/workspace.js';
 import { initSessions, getSessions, getSessionsByDate, restoreSession, onSessionsChanged } from '../services/session-history.js';
 import { createShareLink, EXPIRATION_OPTIONS } from '../services/share.js';
 
@@ -41,6 +41,9 @@ const state = {
   sessions: [],
   selectedWorkspaceId: null,
   selectedTabs: new Set(), // For sharing
+  selectedColor: 'blue', // Default workspace color
+  customTabs: [], // Custom URLs added by user
+  editingWorkspaceId: null, // ID of workspace being edited
   currentPage: 'tabs', // 'tabs', 'devices', 'workspaces', 'history'
 };
 
@@ -99,9 +102,12 @@ const elements = {
   saveWorkspaceModal: document.getElementById('saveWorkspaceModal'),
   closeSaveWorkspaceModal: document.getElementById('closeSaveWorkspaceModal'),
   workspaceName: document.getElementById('workspaceName'),
+  workspaceColorPicker: document.getElementById('workspaceColorPicker'),
   workspaceTabList: document.getElementById('workspaceTabList'),
   workspaceTabCount: document.getElementById('workspaceTabCount'),
   selectAllTabs: document.getElementById('selectAllTabs'),
+  customUrlInput: document.getElementById('customUrlInput'),
+  addCustomUrlBtn: document.getElementById('addCustomUrlBtn'),
   cancelSaveWorkspace: document.getElementById('cancelSaveWorkspace'),
   confirmSaveWorkspace: document.getElementById('confirmSaveWorkspace'),
   shareModal: document.getElementById('shareModal'),
@@ -1290,8 +1296,22 @@ async function handleRestoreWorkspace() {
 }
 
 function showSaveWorkspaceModal() {
+  state.editingWorkspaceId = null; // New workspace mode
+  
+  // Update modal title
+  elements.saveWorkspaceModal.querySelector('.modal-title').textContent = 'Save Workspace';
+  elements.confirmSaveWorkspace.textContent = 'Save';
+  
   elements.workspaceName.value = '';
+  elements.customUrlInput.value = '';
   state.selectedTabs = new Set(state.tabs.map(t => t.id)); // Select all by default
+  state.selectedColor = 'blue'; // Reset to default color
+  state.customTabs = []; // Reset custom tabs
+  
+  // Reset color picker selection
+  elements.workspaceColorPicker.querySelectorAll('.color-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.color === 'blue');
+  });
   
   // Render tab selection list
   renderWorkspaceTabList();
@@ -1301,31 +1321,207 @@ function showSaveWorkspaceModal() {
   elements.workspaceName.focus();
 }
 
+function showEditWorkspaceModal(workspaceId) {
+  const workspace = state.workspaces.find(w => w.id === workspaceId);
+  if (!workspace) return;
+  
+  state.editingWorkspaceId = workspaceId; // Edit mode
+  
+  // Update modal title
+  elements.saveWorkspaceModal.querySelector('.modal-title').textContent = 'Edit Workspace';
+  elements.confirmSaveWorkspace.textContent = 'Update';
+  
+  elements.workspaceName.value = workspace.name;
+  elements.customUrlInput.value = '';
+  state.selectedColor = workspace.color || 'blue';
+  
+  // Convert workspace tabs to customTabs (since they're not currently open)
+  state.customTabs = workspace.tabs.map((tab, index) => ({
+    id: 'existing-' + index,
+    url: tab.url,
+    title: tab.title || getDomain(tab.url),
+    favIconUrl: tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(tab.url)}&sz=32`,
+    isCustom: true
+  }));
+  
+  // Select all existing tabs
+  state.selectedTabs = new Set(state.customTabs.map(t => t.id));
+  
+  // Update color picker selection
+  elements.workspaceColorPicker.querySelectorAll('.color-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.color === state.selectedColor);
+  });
+  
+  // Render tab selection list (only customTabs, no current tabs)
+  renderEditWorkspaceTabList();
+  updateWorkspaceTabCount();
+  
+  elements.saveWorkspaceModal.style.display = 'flex';
+  elements.workspaceName.focus();
+}
+
+function renderEditWorkspaceTabList() {
+  // In edit mode, show customTabs (existing workspace tabs) + option to add from current tabs
+  const allTabs = [...state.customTabs];
+  
+  // Add current open tabs that aren't already in the workspace
+  const existingUrls = new Set(state.customTabs.map(t => t.url));
+  state.tabs.forEach(tab => {
+    if (!existingUrls.has(tab.url)) {
+      allTabs.push({
+        ...tab,
+        isCurrentTab: true
+      });
+    }
+  });
+  
+  elements.workspaceTabList.innerHTML = allTabs.map(tab => {
+    const domain = getDomain(tab.url);
+    const isCustom = tab.isCustom;
+    const isCurrentTab = tab.isCurrentTab;
+    return `
+      <label class="tab-select-item ${isCustom ? 'custom-tab' : ''} ${isCurrentTab ? 'current-tab' : ''}">
+        <input type="checkbox" data-tab-id="${tab.id}" ${state.selectedTabs.has(tab.id) ? 'checked' : ''}>
+        ${tab.favIconUrl 
+          ? `<img src="${escapeHtml(tab.favIconUrl)}" class="tab-favicon" onerror="this.outerHTML='<svg class=\\'tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
+          : `<svg class="tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
+        }
+        <div class="tab-info">
+          <span class="tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
+          <span class="tab-url">${escapeHtml(domain)}</span>
+        </div>
+        ${isCustom ? `<button class="remove-custom-tab" data-custom-id="${tab.id}" title="Remove">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+        </button>` : ''}
+      </label>
+    `;
+  }).join('');
+  
+  // Add event listeners for remove buttons
+  elements.workspaceTabList.querySelectorAll('.remove-custom-tab').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const customId = btn.dataset.customId;
+      state.customTabs = state.customTabs.filter(t => t.id !== customId);
+      state.selectedTabs.delete(customId);
+      renderEditWorkspaceTabList();
+      updateWorkspaceTabCount();
+    });
+  });
+}
+
+function addCustomUrl() {
+  let url = elements.customUrlInput.value.trim();
+  if (!url) return;
+  
+  // Add https:// if no protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  
+  // Basic URL validation
+  try {
+    new URL(url);
+  } catch {
+    alert('Please enter a valid URL');
+    return;
+  }
+  
+  // Generate a unique ID for custom tab
+  const customId = 'custom-' + Date.now();
+  const domain = getDomain(url);
+  
+  state.customTabs.push({
+    id: customId,
+    url: url,
+    title: domain,
+    favIconUrl: `https://www.google.com/s2/favicons?domain=${domain}&sz=32`,
+    isCustom: true
+  });
+  
+  state.selectedTabs.add(customId);
+  
+  elements.customUrlInput.value = '';
+  if (state.editingWorkspaceId) {
+    renderEditWorkspaceTabList();
+  } else {
+    renderWorkspaceTabList();
+  }
+  updateWorkspaceTabCount();
+}
+
 function renderWorkspaceTabList() {
-  elements.workspaceTabList.innerHTML = state.tabs.map(tab => `
-    <label class="tab-select-item">
-      <input type="checkbox" data-tab-id="${tab.id}" ${state.selectedTabs.has(tab.id) ? 'checked' : ''}>
-      ${tab.favIconUrl 
-        ? `<img src="${escapeHtml(tab.favIconUrl)}" class="tab-favicon" onerror="this.outerHTML='<div class=\\'tab-favicon default\\'><svg viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z\\'/></svg></div>'">`
-        : `<div class="tab-favicon default"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/></svg></div>`
-      }
-      <span class="tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
-    </label>
-  `).join('');
+  const allTabs = [...state.customTabs, ...state.tabs];
+  
+  elements.workspaceTabList.innerHTML = allTabs.map(tab => {
+    const domain = getDomain(tab.url);
+    const isCustom = tab.isCustom;
+    return `
+      <label class="tab-select-item ${isCustom ? 'custom-tab' : ''}">
+        <input type="checkbox" data-tab-id="${tab.id}" ${state.selectedTabs.has(tab.id) ? 'checked' : ''}>
+        ${tab.favIconUrl 
+          ? `<img src="${escapeHtml(tab.favIconUrl)}" class="tab-favicon" onerror="this.outerHTML='<svg class=\\'tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
+          : `<svg class="tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
+        }
+        <div class="tab-info">
+          <span class="tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
+          <span class="tab-url">${escapeHtml(domain)}</span>
+        </div>
+        ${isCustom ? `<button class="remove-custom-tab" data-custom-id="${tab.id}" title="Remove">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+        </button>` : ''}
+      </label>
+    `;
+  }).join('');
+  
+  // Add event listeners for remove buttons
+  elements.workspaceTabList.querySelectorAll('.remove-custom-tab').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const customId = btn.dataset.customId;
+      state.customTabs = state.customTabs.filter(t => t.id !== customId);
+      state.selectedTabs.delete(customId);
+      renderWorkspaceTabList();
+      updateWorkspaceTabCount();
+    });
+  });
 }
 
 function updateWorkspaceTabCount() {
   elements.workspaceTabCount.textContent = state.selectedTabs.size;
-  elements.selectAllTabs.textContent = state.selectedTabs.size === state.tabs.length ? 'Deselect All' : 'Select All';
+  const totalTabs = state.tabs.length + state.customTabs.length;
+  elements.selectAllTabs.textContent = state.selectedTabs.size === totalTabs ? 'Deselect All' : 'Select All';
 }
 
 function toggleAllTabsSelection() {
-  if (state.selectedTabs.size === state.tabs.length) {
-    state.selectedTabs.clear();
+  if (state.editingWorkspaceId) {
+    // Edit mode: include customTabs and current tabs not in workspace
+    const existingUrls = new Set(state.customTabs.map(t => t.url));
+    const currentTabsNotInWorkspace = state.tabs.filter(t => !existingUrls.has(t.url));
+    const allTabs = [...state.customTabs, ...currentTabsNotInWorkspace];
+    
+    if (state.selectedTabs.size === allTabs.length) {
+      state.selectedTabs.clear();
+    } else {
+      state.selectedTabs = new Set(allTabs.map(t => t.id));
+    }
+    renderEditWorkspaceTabList();
   } else {
-    state.selectedTabs = new Set(state.tabs.map(t => t.id));
+    // New workspace mode
+    const allTabs = [...state.customTabs, ...state.tabs];
+    if (state.selectedTabs.size === allTabs.length) {
+      state.selectedTabs.clear();
+    } else {
+      state.selectedTabs = new Set(allTabs.map(t => t.id));
+    }
+    renderWorkspaceTabList();
   }
-  renderWorkspaceTabList();
   updateWorkspaceTabCount();
 }
 
@@ -1333,7 +1529,9 @@ function handleTabSelectionChange(e) {
   const checkbox = e.target.closest('input[type="checkbox"]');
   if (!checkbox) return;
   
-  const tabId = parseInt(checkbox.dataset.tabId);
+  const rawId = checkbox.dataset.tabId;
+  // Custom tabs have string IDs like 'custom-123' or 'existing-0', regular tabs have numeric IDs
+  const tabId = (rawId.startsWith('custom-') || rawId.startsWith('existing-')) ? rawId : parseInt(rawId);
   if (checkbox.checked) {
     state.selectedTabs.add(tabId);
   } else {
@@ -1348,23 +1546,43 @@ function hideSaveWorkspaceModal() {
 
 async function handleSaveWorkspace() {
   const name = elements.workspaceName.value.trim() || `Workspace ${state.workspaces.length + 1}`;
-  const selectedTabObjects = state.tabs.filter(t => state.selectedTabs.has(t.id));
+  const color = state.selectedColor;
   
-  console.log('[Workspace] Saving workspace:', name, 'with', selectedTabObjects.length, 'tabs');
-  console.log('[Workspace] Selected tabs:', state.selectedTabs);
+  // Include both regular tabs and custom tabs
+  const selectedRegularTabs = state.tabs.filter(t => state.selectedTabs.has(t.id));
+  const selectedCustomTabs = state.customTabs.filter(t => state.selectedTabs.has(t.id));
+  const selectedTabObjects = [...selectedCustomTabs, ...selectedRegularTabs];
   
   if (selectedTabObjects.length === 0) {
     alert('Please select at least one tab');
     return;
   }
   
+  // Format tabs for storage
+  const tabsToSave = selectedTabObjects.map(tab => ({
+    url: tab.url,
+    title: tab.title,
+    favIconUrl: tab.favIconUrl,
+    pinned: tab.pinned || false,
+  }));
+  
   try {
-    const workspace = await createWorkspace(name, selectedTabObjects);
-    console.log('[Workspace] Created:', workspace);
+    if (state.editingWorkspaceId) {
+      // Update existing workspace
+      await updateWorkspace(state.editingWorkspaceId, {
+        name,
+        color,
+        tabs: tabsToSave
+      });
+      console.log('[Workspace] Updated:', state.editingWorkspaceId);
+    } else {
+      // Create new workspace
+      const workspace = await createWorkspace(name, selectedTabObjects, color);
+      console.log('[Workspace] Created:', workspace);
+    }
     
     // Update local state with latest workspaces
     state.workspaces = getWorkspaces();
-    console.log('[Workspace] Updated state.workspaces:', state.workspaces);
     
     hideSaveWorkspaceModal();
     
@@ -1486,6 +1704,26 @@ function initWorkspaceEvents() {
   elements.selectAllTabs.addEventListener('click', toggleAllTabsSelection);
   elements.workspaceTabList.addEventListener('change', handleTabSelectionChange);
   
+  // Color picker
+  elements.workspaceColorPicker.addEventListener('click', (e) => {
+    const colorOption = e.target.closest('.color-option');
+    if (colorOption) {
+      state.selectedColor = colorOption.dataset.color;
+      elements.workspaceColorPicker.querySelectorAll('.color-option').forEach(opt => {
+        opt.classList.toggle('selected', opt === colorOption);
+      });
+    }
+  });
+  
+  // Add custom URL
+  elements.addCustomUrlBtn.addEventListener('click', addCustomUrl);
+  elements.customUrlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCustomUrl();
+    }
+  });
+  
   // Restore workspace modal
   elements.closeRestoreWorkspaceModal.addEventListener('click', hideRestoreWorkspaceModal);
   elements.restoreAdd.addEventListener('click', () => handleRestoreWorkspace('add'));
@@ -1507,6 +1745,10 @@ function handleWorkspaceCardClick(e) {
       state.workspaces = getWorkspaces();
       renderWorkspacesPage();
     }
+    return;
+  } else if (action === 'edit') {
+    e.stopPropagation();
+    showEditWorkspaceModal(workspaceId);
     return;
   } else if (action === 'restore') {
     e.stopPropagation();
@@ -1644,7 +1886,7 @@ function renderDevicesPage() {
     const device = data.device;
     const tabs = data.tabs;
     const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
-    const isOnline = Date.now() - lastSeenTime < 6 * 60 * 1000; // 6 minutes
+    const isOnline = Date.now() - lastSeenTime < 2 * 60 * 1000; // 2 minutes (sync interval is 1 min)
     const statusClass = isOnline ? 'online' : 'offline';
     const statusText = isOnline ? 'Online' : 'Offline';
     
@@ -1699,11 +1941,16 @@ function renderWorkspacesPage() {
         <svg class="workspace-chevron" viewBox="0 0 16 16" fill="currentColor">
           <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z"/>
         </svg>
-        <svg class="workspace-icon" viewBox="0 0 16 16" fill="currentColor">
+        <svg class="workspace-icon color-${workspace.color || 'blue'}" viewBox="0 0 16 16" fill="currentColor">
           <path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/>
         </svg>
         <span class="workspace-name">${escapeHtml(workspace.name)}</span>
         <span class="workspace-tab-count">${workspace.tabs.length} tabs</span>
+        <button class="workspace-action-btn" data-action="edit" title="Edit workspace">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+          </svg>
+        </button>
         <button class="workspace-action-btn" data-action="restore" title="Open all tabs">
           <svg viewBox="0 0 16 16" fill="currentColor">
             <path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>

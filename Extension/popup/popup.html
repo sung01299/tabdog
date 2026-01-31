@@ -225,7 +225,7 @@
     </nav>
 
     <!-- Save Workspace Modal -->
-    <div class="modal-overlay" id="saveWorkspaceModal" style="display: none;">
+    <div class="modal-overlay modal-fullscreen" id="saveWorkspaceModal" style="display: none;">
       <div class="modal modal-lg">
         <div class="modal-header">
           <h3 class="modal-title">Save Workspace</h3>
@@ -241,8 +241,29 @@
             <input type="text" id="workspaceName" class="form-input" placeholder="My Workspace">
           </div>
           <div class="form-group">
+            <label>Color</label>
+            <div class="color-picker" id="workspaceColorPicker">
+              <button class="color-option selected" data-color="blue" style="--color: #007AFF;"></button>
+              <button class="color-option" data-color="purple" style="--color: #AF52DE;"></button>
+              <button class="color-option" data-color="pink" style="--color: #FF2D55;"></button>
+              <button class="color-option" data-color="red" style="--color: #FF3B30;"></button>
+              <button class="color-option" data-color="orange" style="--color: #FF9500;"></button>
+              <button class="color-option" data-color="yellow" style="--color: #FFCC00;"></button>
+              <button class="color-option" data-color="green" style="--color: #34C759;"></button>
+              <button class="color-option" data-color="teal" style="--color: #5AC8FA;"></button>
+              <button class="color-option" data-color="gray" style="--color: #8E8E93;"></button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Add custom URL</label>
+            <div class="url-add-row">
+              <input type="text" id="customUrlInput" class="form-input" placeholder="https://example.com">
+              <button class="btn-add-url" id="addCustomUrlBtn">Add</button>
+            </div>
+          </div>
+          <div class="form-group">
             <div class="tab-select-header">
-              <label>Select tabs to save</label>
+              <label>Tabs to save</label>
               <button class="select-all-btn" id="selectAllTabs">Select All</button>
             </div>
             <div class="tab-select-list" id="workspaceTabList">

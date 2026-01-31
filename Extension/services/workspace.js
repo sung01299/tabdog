@@ -48,7 +48,7 @@ export function getWorkspaces() {
  * @param {Array} tabs - Array of tab objects
  * @returns {Promise<Object>} Created workspace
  */
-export async function createWorkspace(name, tabs) {
+export async function createWorkspace(name, tabs, color = 'blue') {
   const user = getCurrentUser();
   const workspaceId = generateId();
   const now = new Date().toISOString();
@@ -56,6 +56,7 @@ export async function createWorkspace(name, tabs) {
   const workspace = {
     id: workspaceId,
     name,
+    color,
     tabs: tabs.map(tab => ({
       url: tab.url,
       title: tab.title,
@@ -169,23 +170,26 @@ export async function restoreWorkspace(workspaceId) {
 
 /**
  * Sync workspaces with cloud
+ * Cloud is the primary source of truth - local changes should be pushed immediately
  */
 export async function syncWorkspaces() {
   const user = getCurrentUser();
   if (!user) return;
   
   try {
-    // Fetch from cloud
+    // Fetch from cloud - this is the source of truth
     const cloudWorkspaces = await firestoreList(`users/${user.uid}/workspaces`);
     
-    // Merge local and cloud (cloud wins for conflicts)
-    const merged = mergeWorkspaces(workspacesCache, cloudWorkspaces);
-    
-    workspacesCache = merged;
+    // Replace local cache with cloud data
+    workspacesCache = cloudWorkspaces.sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
     await saveToLocalStorage();
     
     // Update sync timestamp
     await chrome.storage.local.set({ [SYNC_KEY]: Date.now() });
+    
+    console.log(`[Workspace] Synced ${workspacesCache.length} workspaces from cloud`);
     
     notifyListeners();
   } catch (error) {
@@ -231,40 +235,3 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
-/**
- * Merge local and cloud workspaces
- * @param {Array} local - Local workspaces
- * @param {Array} cloud - Cloud workspaces
- * @returns {Array} Merged workspaces
- */
-function mergeWorkspaces(local, cloud) {
-  const merged = new Map();
-  
-  // Add all cloud workspaces
-  for (const workspace of cloud) {
-    merged.set(workspace.id, workspace);
-  }
-  
-  // Add local workspaces that don't exist in cloud
-  // or that are newer than cloud version
-  for (const workspace of local) {
-    const cloudVersion = merged.get(workspace.id);
-    
-    if (!cloudVersion) {
-      merged.set(workspace.id, workspace);
-    } else {
-      // Keep the newer version
-      const localTime = new Date(workspace.updatedAt).getTime();
-      const cloudTime = new Date(cloudVersion.updatedAt).getTime();
-      
-      if (localTime > cloudTime) {
-        merged.set(workspace.id, workspace);
-      }
-    }
-  }
-  
-  // Sort by updatedAt descending
-  return Array.from(merged.values()).sort((a, b) => 
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
-}

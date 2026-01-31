@@ -11,13 +11,14 @@ import { initAuth, onAuthStateChanged, getCurrentUser, signInWithGoogle, signOut
 import { registerDevice, updateDeviceStatus } from './services/device.js';
 import { startSync, stopSync, syncAllTabs, syncTab, removeTab } from './services/sync.js';
 import { saveSession } from './services/session-history.js';
+import { syncWorkspaces } from './services/workspace.js';
 
 const TAB_TIMES_KEY = "tabCreationTimes";
-const PERIODIC_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const SYNC_ALARM_NAME = "tabdog-sync";
+const SYNC_INTERVAL_MINUTES = 1; // 1 minute - more frequent for better online status
 
 // In-memory cache of tab creation times (tabId -> timestamp)
 let tabCreationTimes = {};
-let periodicSyncInterval = null;
 
 // ============================================================================
 // INITIALIZATION
@@ -72,30 +73,41 @@ async function handleAuthStateChanged(user) {
 }
 
 /**
- * Start periodic tab sync
+ * Start periodic tab sync using chrome.alarms (survives service worker termination)
  */
-function startPeriodicSync() {
-  if (periodicSyncInterval) {
-    clearInterval(periodicSyncInterval);
-  }
+async function startPeriodicSync() {
+  // Clear existing alarm if any
+  await chrome.alarms.clear(SYNC_ALARM_NAME);
   
-  periodicSyncInterval = setInterval(async () => {
-    const user = getCurrentUser();
-    if (user) {
-      console.log("[TabDog] Running periodic sync...");
-      await syncAllTabs();
-      await updateDeviceStatus(user.uid, true);
-    }
-  }, PERIODIC_SYNC_INTERVAL_MS);
+  // Create alarm that fires every minute
+  await chrome.alarms.create(SYNC_ALARM_NAME, {
+    periodInMinutes: SYNC_INTERVAL_MINUTES,
+  });
+  
+  console.log(`[TabDog] Periodic sync alarm set (every ${SYNC_INTERVAL_MINUTES} minute(s))`);
+  
+  // Run initial sync immediately
+  await runPeriodicSync();
 }
 
 /**
  * Stop periodic tab sync
  */
-function stopPeriodicSync() {
-  if (periodicSyncInterval) {
-    clearInterval(periodicSyncInterval);
-    periodicSyncInterval = null;
+async function stopPeriodicSync() {
+  await chrome.alarms.clear(SYNC_ALARM_NAME);
+  console.log("[TabDog] Periodic sync alarm cleared");
+}
+
+/**
+ * Run periodic sync tasks
+ */
+async function runPeriodicSync() {
+  const user = getCurrentUser();
+  if (user) {
+    console.log("[TabDog] Running periodic sync...");
+    await syncAllTabs();
+    await updateDeviceStatus(user.uid, true);
+    await syncWorkspaces();
   }
 }
 
@@ -224,6 +236,13 @@ chrome.runtime.onSuspend.addListener(async () => {
   const user = getCurrentUser();
   if (user) {
     await updateDeviceStatus(user.uid, false);
+  }
+});
+
+// Handle alarm events (for periodic sync)
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === SYNC_ALARM_NAME) {
+    await runPeriodicSync();
   }
 });
 

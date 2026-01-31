@@ -7,7 +7,8 @@
     "tabs",
     "storage",
     "sessions",
-    "identity"
+    "identity",
+    "alarms"
   ],
   "oauth2": {
     "client_id": "853701226968-qb8v1lf4g348lbfs9flbquthm5r988ej.apps.googleusercontent.com",
