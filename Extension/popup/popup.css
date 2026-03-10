@@ -1015,6 +1015,8 @@ html, body {
 .section-header .icon {
   width: 14px;
   height: 14px;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
 }
 
 .section-count {
@@ -1393,8 +1395,8 @@ html, body {
 }
 
 .workspace-chevron {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   color: var(--text-tertiary);
   transition: transform var(--transition-fast);
   flex-shrink: 0;

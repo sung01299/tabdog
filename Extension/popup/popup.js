@@ -1072,8 +1072,6 @@ function getSelectableItems() {
   // Get items based on current page
   if (state.currentPage === 'tabs') {
     items = Array.from(document.querySelectorAll('#pageTabs .tab-item, #pageTabs .domain-header, #pageTabs .section-header, #pageTabs .recently-closed-item'));
-  } else if (state.currentPage === 'devices') {
-    items = Array.from(document.querySelectorAll('#pageDevices .device-header, #pageDevices .device-tab-item'));
   } else if (state.currentPage === 'workspaces') {
     items = Array.from(document.querySelectorAll('#pageWorkspaces .workspace-header, #pageWorkspaces .workspace-tab-item'));
   } else if (state.currentPage === 'history') {
@@ -1818,6 +1816,8 @@ function initNavigationEvents() {
 }
 
 function switchPage(pageName) {
+  if (pageName === 'devices') return;
+  
   state.currentPage = pageName;
   
   // Update navigation active state
@@ -1837,11 +1837,6 @@ function switchPage(pageName) {
       elements.pageTabs.style.display = 'flex';
       elements.toolbar.style.display = 'block';
       elements.searchInput.focus();
-      break;
-    case 'devices':
-      elements.pageDevices.style.display = 'flex';
-      elements.toolbar.style.display = 'none';
-      renderDevicesPage();
       break;
     case 'workspaces':
       elements.pageWorkspaces.style.display = 'flex';
