@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TabDog — Promo Screenshots</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      padding: 40px 20px;
+    }
+
+    .slide-label {
+      font-size: 14px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: -28px;
+    }
+
+    /* ============================================================
+       SLIDE FRAME — 1280 x 800 (Chrome Web Store)
+       ============================================================ */
+    .slide {
+      width: 1280px;
+      height: 800px;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ============================================================
+       SHARED ELEMENTS
+       ============================================================ */
+    .app-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 18px;
+    }
+
+    .app-icon.large {
+      width: 120px;
+      height: 120px;
+      border-radius: 28px;
+    }
+
+    .tagline {
+      font-size: 52px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      text-align: center;
+      max-width: 700px;
+    }
+
+    .subtitle {
+      font-size: 22px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      max-width: 560px;
+      line-height: 1.5;
+    }
+
+    .feature-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: rgba(255,255,255,0.7);
+      backdrop-filter: blur(10px);
+    }
+
+    .feature-title {
+      font-size: 44px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1.15;
+    }
+
+    .feature-desc {
+      font-size: 20px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+      max-width: 400px;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* ============================================================
+       MOCK POPUP — Realistic extension UI replica
+       ============================================================ */
+    .mock-popup {
+      width: 400px;
+      height: 560px;
+      background: #1c1c1e;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08),
+        0 25px 80px rgba(0,0,0,0.5),
+        0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+      color: #f5f5f7;
+      flex-shrink: 0;
+    }
+
+    .mock-popup.light {
+      background: #ffffff;
+      color: #1d1d1f;
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.08),
+        0 25px 80px rgba(0,0,0,0.25),
+        0 10px 30px rgba(0,0,0,0.15);
+    }
+
+    .mock-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #2c2c2e;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+
+    .mock-popup.light .mock-header {
+      background: #f5f5f7;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #98989d;
+    }
+
+    .mock-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #30d158;
+    }
+
+    .mock-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mock-header-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mock-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #007AFF, #5856D6);
+    }
+
+    .mock-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #2c2c2e;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+
+    .mock-popup.light .mock-search {
+      background: #f5f5f7;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-search-icon {
+      color: #636366;
+      flex-shrink: 0;
+    }
+
+    .mock-search-text {
+      color: #636366;
+      font-size: 13px;
+    }
+
+    .mock-search-active .mock-search-text {
+      color: #f5f5f7;
+    }
+
+    .mock-popup.light .mock-search-active .mock-search-text {
+      color: #1d1d1f;
+    }
+
+    .mock-content {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .mock-tab {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .mock-popup.light .mock-tab {
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-tab.selected {
+      background: rgba(10, 132, 255, 0.2);
+    }
+
+    .mock-popup.light .mock-tab.selected {
+      background: rgba(0, 122, 255, 0.12);
+    }
+
+    .mock-tab.highlighted {
+      background: rgba(10, 132, 255, 0.08);
+    }
+
+    .mock-favicon {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .mock-tab-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .mock-tab-title {
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mock-tab-meta {
+      font-size: 11px;
+      color: #98989d;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mock-popup.light .mock-tab-meta {
+      color: #86868b;
+    }
+
+    .mock-tab-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #0a84ff;
+      flex-shrink: 0;
+    }
+
+    .mock-tab-close {
+      width: 16px;
+      height: 16px;
+      color: #636366;
+      flex-shrink: 0;
+      opacity: 0;
+    }
+
+    .mock-tab:hover .mock-tab-close { opacity: 1; }
+
+    .mock-domain-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #2c2c2e;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .mock-popup.light .mock-domain-header {
+      background: #f5f5f7;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-domain-name {
+      flex: 1;
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .mock-domain-count {
+      padding: 2px 8px;
+      font-size: 11px;
+      color: #98989d;
+      background: #3a3a3c;
+      border-radius: 10px;
+    }
+
+    .mock-popup.light .mock-domain-count {
+      background: #e8e8ed;
+      color: #86868b;
+    }
+
+    .mock-chevron {
+      color: #636366;
+      font-size: 10px;
+    }
+
+    .mock-section-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      background: #2c2c2e;
+      font-size: 11px;
+      font-weight: 500;
+      color: #98989d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .mock-popup.light .mock-section-header {
+      background: #f5f5f7;
+      color: #86868b;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 8px 8px 14px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+
+    .mock-popup.light .mock-navbar {
+      border-top: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      min-width: 50px;
+    }
+
+    .mock-nav-icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .mock-nav-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: #636366;
+    }
+
+    .mock-nav-item.active .mock-nav-label {
+      color: #0a84ff;
+    }
+
+    .mock-popup.light .mock-nav-item.active .mock-nav-label {
+      color: #007aff;
+    }
+
+    /* Workspace items */
+    .mock-workspace {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .mock-popup.light .mock-workspace {
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-ws-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .mock-ws-name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .mock-ws-count {
+      font-size: 12px;
+      color: #636366;
+    }
+
+    /* History items */
+    .mock-history-date {
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #98989d;
+      background: #2c2c2e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .mock-popup.light .mock-history-date {
+      background: #f5f5f7;
+      color: #86868b;
+    }
+
+    .mock-history-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .mock-popup.light .mock-history-item {
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .mock-history-time {
+      font-size: 11px;
+      color: #636366;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    /* Search highlight */
+    .highlight {
+      background: rgba(255, 214, 10, 0.35);
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+
+    .mock-popup.light .highlight {
+      background: rgba(255, 204, 0, 0.35);
+    }
+
+    /* ============================================================
+       SLIDE 1 — HERO
+       ============================================================ */
+    .slide-hero {
+      background: linear-gradient(160deg, #0a0a0a 0%, #1a1a2e 40%, #16213e 100%);
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      z-index: 1;
+    }
+
+    .hero-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(0, 122, 255, 0.12) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 100px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .hero-badge-icon {
+      font-size: 14px;
+    }
+
+    .hero-layout {
+      display: flex;
+      align-items: center;
+      gap: 80px;
+    }
+
+    .hero-text {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .hero-text .tagline {
+      text-align: left;
+      font-size: 48px;
+    }
+
+    .hero-text .subtitle {
+      text-align: left;
+      font-size: 19px;
+    }
+
+    .hero-shortcut {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ============================================================
+       SLIDE 2 — SEARCH
+       ============================================================ */
+    .slide-search {
+      background: linear-gradient(160deg, #0a0a0a 0%, #1a0a2e 40%, #0f1b3e 100%);
+    }
+
+    .slide-inner {
+      display: flex;
+      align-items: center;
+      gap: 80px;
+      padding: 0 100px;
+    }
+
+    .slide-text {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+
+    .slide-text .feature-title {
+      line-height: 1.2;
+    }
+
+    .slide-text .feature-desc {
+      max-width: 380px;
+    }
+
+    .slide-visual {
+      flex-shrink: 0;
+    }
+
+    /* ============================================================
+       SLIDE 3 — DOMAIN GROUPING
+       ============================================================ */
+    .slide-domain {
+      background: linear-gradient(160deg, #0a0a0a 0%, #0a1a0a 40%, #0f2e1b 100%);
+    }
+
+    /* ============================================================
+       SLIDE 4 — WORKSPACES
+       ============================================================ */
+    .slide-workspace {
+      background: linear-gradient(160deg, #0a0a0a 0%, #2e1a0a 40%, #3e2516 100%);
+    }
+
+    /* ============================================================
+       SLIDE 5 — DARK/LIGHT + HISTORY
+       ============================================================ */
+    .slide-theme {
+      background: linear-gradient(160deg, #0a0a0a 0%, #1a1a1a 40%, #2a2a2a 100%);
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    .theme-popups {
+      display: flex;
+      gap: 40px;
+    }
+
+    .theme-popups .mock-popup {
+      height: 480px;
+      transform: scale(0.95);
+    }
+
+    .theme-label {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 13px;
+      color: #636366;
+      white-space: nowrap;
+    }
+
+    .popup-wrapper {
+      position: relative;
+    }
+
+    /* ============================================================
+       SVG ICONS (inline for self-contained page)
+       ============================================================ */
+    .icon-search { width: 14px; height: 14px; }
+    .icon-nav { width: 20px; height: 20px; }
+
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     SLIDE 1: HERO
+     ============================================================ -->
+<p class="slide-label">Slide 1 — Hero</p>
+<div class="slide slide-hero">
+  <div class="hero-glow"></div>
+  <div class="hero-layout" style="z-index:1;">
+    <div class="hero-text">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:4px;">
+        <img src="../docs/tabdog-icon.png" class="app-icon" alt="TabDog">
+        <span style="font-size:32px;font-weight:700;letter-spacing:-0.5px;">TabDog</span>
+      </div>
+      <div class="tagline">Manage all your<br>browser tabs<br>in one place</div>
+      <div class="subtitle">Search, group by domain, save workspaces, and browse history — all from a single popup.</div>
+      <div class="hero-shortcut">
+        <span class="kbd">&#8984; Shift E</span>
+        <span>to open</span>
+      </div>
+    </div>
+    <div class="slide-visual">
+      <!-- MOCK: Tabs view (dark) -->
+      <div class="mock-popup" style="height:520px;">
+        <div class="mock-header">
+          <div class="mock-status">
+            <div class="mock-status-dot"></div>
+            <span>23 tabs</span>
+          </div>
+          <div class="mock-header-actions">
+            <div class="mock-header-btn">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="#98989d"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
+            </div>
+            <div class="mock-avatar"></div>
+          </div>
+        </div>
+        <div class="mock-search">
+          <svg class="mock-search-icon icon-search" viewBox="0 0 16 16" fill="#636366"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+          <span class="mock-search-text">Search tabs...</span>
+        </div>
+        <div class="mock-content">
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#1a73e8;">G</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">Google Cloud Console — Dashboard</span>
+              <span class="mock-tab-meta">console.cloud.google.com · 3m ago</span>
+            </div>
+            <div class="mock-tab-dot"></div>
+          </div>
+          <div class="mock-tab selected">
+            <div class="mock-favicon" style="background:#333;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            </div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">GitHub — sung01299/tabdog</span>
+              <span class="mock-tab-meta">github.com · 1m ago</span>
+            </div>
+            <div class="mock-tab-dot"></div>
+          </div>
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#ff6d00;">S</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">Stack Overflow — Chrome extension tabs API</span>
+              <span class="mock-tab-meta">stackoverflow.com · 8m ago</span>
+            </div>
+          </div>
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#0a66c2;">L</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">LinkedIn — Feed</span>
+              <span class="mock-tab-meta">linkedin.com · 12m ago</span>
+            </div>
+          </div>
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#ea4335;">Y</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">YouTube — How to build Chrome Extensions</span>
+              <span class="mock-tab-meta">youtube.com · 15m ago</span>
+            </div>
+          </div>
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#5865F2;">D</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">Discord — #general</span>
+              <span class="mock-tab-meta">discord.com · 20m ago</span>
+            </div>
+          </div>
+        </div>
+        <div class="mock-navbar">
+          <div class="mock-nav-item active">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#0a84ff"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/><path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+            <span class="mock-nav-label" style="color:#0a84ff;">Tabs</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-nav-label">Spaces</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+            <span class="mock-nav-label">History</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SLIDE 2: INSTANT SEARCH
+     ============================================================ -->
+<p class="slide-label">Slide 2 — Search</p>
+<div class="slide slide-search">
+  <div class="slide-inner">
+    <div class="slide-text">
+      <div class="feature-label">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+        INSTANT SEARCH
+      </div>
+      <div class="feature-title">Find any tab<br>in seconds</div>
+      <div class="feature-desc">Search by title, URL, or domain. Results update as you type — no more hunting through windows.</div>
+    </div>
+    <div class="slide-visual">
+      <div class="mock-popup" style="height:480px;">
+        <div class="mock-header">
+          <div class="mock-status"><div class="mock-status-dot"></div><span>23 tabs</span></div>
+          <div class="mock-header-actions"><div class="mock-avatar"></div></div>
+        </div>
+        <div class="mock-search mock-search-active">
+          <svg class="mock-search-icon icon-search" viewBox="0 0 16 16" fill="#0a84ff"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+          <span class="mock-search-text">git</span>
+          <span style="display:inline-block;width:1px;height:16px;background:#0a84ff;animation:blink 1s infinite;margin-left:-2px;"></span>
+        </div>
+        <div class="mock-content">
+          <div class="mock-tab selected">
+            <div class="mock-favicon" style="background:#333;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            </div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title"><highlight class="highlight">Git</highlight>Hub — sung01299/tabdog</span>
+              <span class="mock-tab-meta"><highlight class="highlight">git</highlight>hub.com</span>
+            </div>
+          </div>
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#333;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            </div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title"><highlight class="highlight">Git</highlight>Hub — Pull Request #42</span>
+              <span class="mock-tab-meta"><highlight class="highlight">git</highlight>hub.com</span>
+            </div>
+          </div>
+          <div class="mock-tab">
+            <div class="mock-favicon" style="background:#f05032;">G</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title"><highlight class="highlight">Git</highlight> - Documentation</span>
+              <span class="mock-tab-meta"><highlight class="highlight">git</highlight>-scm.com</span>
+            </div>
+          </div>
+          <div style="padding:8px 12px;font-size:11px;color:#636366;background:#2c2c2e;border-top:1px solid rgba(255,255,255,0.08);">3 results</div>
+        </div>
+        <div class="mock-navbar">
+          <div class="mock-nav-item active">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#0a84ff"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/><path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+            <span class="mock-nav-label" style="color:#0a84ff;">Tabs</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-nav-label">Spaces</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+            <span class="mock-nav-label">History</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SLIDE 3: DOMAIN GROUPING
+     ============================================================ -->
+<p class="slide-label">Slide 3 — Domain Grouping</p>
+<div class="slide slide-domain">
+  <div class="slide-inner">
+    <div class="slide-text">
+      <div class="feature-label">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
+        DOMAIN GROUPING
+      </div>
+      <div class="feature-title">Tabs organized<br>by website</div>
+      <div class="feature-desc">Automatically group tabs by domain. Expand, collapse, or close all tabs in a group with one click.</div>
+    </div>
+    <div class="slide-visual">
+      <div class="mock-popup" style="height:480px;">
+        <div class="mock-header">
+          <div class="mock-status"><div class="mock-status-dot"></div><span>23 tabs</span></div>
+          <div class="mock-header-actions"><div class="mock-avatar"></div></div>
+        </div>
+        <div class="mock-search">
+          <svg class="mock-search-icon icon-search" viewBox="0 0 16 16" fill="#636366"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+          <span class="mock-search-text">Search tabs...</span>
+        </div>
+        <div class="mock-content">
+          <!-- github.com group (expanded) -->
+          <div class="mock-domain-header">
+            <span class="mock-chevron" style="display:inline-block;transform:rotate(90deg);">&#9654;</span>
+            <div class="mock-favicon" style="background:#333;width:14px;height:14px;border-radius:3px;">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            </div>
+            <span class="mock-domain-name">github.com</span>
+            <span class="mock-domain-count">4</span>
+          </div>
+          <div class="mock-tab" style="padding-left:20px;">
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">sung01299/tabdog — main</span>
+              <span class="mock-tab-meta">1m ago</span>
+            </div>
+            <div class="mock-tab-dot"></div>
+          </div>
+          <div class="mock-tab" style="padding-left:20px;">
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">Pull Request #42 — Add workspace sync</span>
+              <span class="mock-tab-meta">5m ago</span>
+            </div>
+          </div>
+          <div class="mock-tab" style="padding-left:20px;">
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">Issues — Feature requests</span>
+              <span class="mock-tab-meta">10m ago</span>
+            </div>
+          </div>
+          <!-- google.com group (collapsed) -->
+          <div class="mock-domain-header">
+            <span class="mock-chevron">&#9654;</span>
+            <div class="mock-favicon" style="background:#1a73e8;width:14px;height:14px;border-radius:3px;font-size:9px;display:flex;align-items:center;justify-content:center;color:#fff;">G</div>
+            <span class="mock-domain-name">google.com</span>
+            <span class="mock-domain-count">5</span>
+          </div>
+          <!-- stackoverflow.com (collapsed) -->
+          <div class="mock-domain-header">
+            <span class="mock-chevron">&#9654;</span>
+            <div class="mock-favicon" style="background:#f48024;width:14px;height:14px;border-radius:3px;font-size:9px;display:flex;align-items:center;justify-content:center;color:#fff;">S</div>
+            <span class="mock-domain-name">stackoverflow.com</span>
+            <span class="mock-domain-count">3</span>
+          </div>
+          <!-- youtube.com (collapsed) -->
+          <div class="mock-domain-header">
+            <span class="mock-chevron">&#9654;</span>
+            <div class="mock-favicon" style="background:#ff0000;width:14px;height:14px;border-radius:3px;font-size:9px;display:flex;align-items:center;justify-content:center;color:#fff;">Y</div>
+            <span class="mock-domain-name">youtube.com</span>
+            <span class="mock-domain-count">2</span>
+          </div>
+        </div>
+        <div class="mock-navbar">
+          <div class="mock-nav-item active">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#0a84ff"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/><path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+            <span class="mock-nav-label" style="color:#0a84ff;">Tabs</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-nav-label">Spaces</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+            <span class="mock-nav-label">History</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SLIDE 4: WORKSPACES
+     ============================================================ -->
+<p class="slide-label">Slide 4 — Workspaces</p>
+<div class="slide slide-workspace">
+  <div class="slide-inner">
+    <div class="slide-text">
+      <div class="feature-label">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+        WORKSPACES
+      </div>
+      <div class="feature-title">Save & restore<br>your tab sets</div>
+      <div class="feature-desc">Save your current tabs as a named workspace with color labels. Restore anytime — add to current window or replace all tabs.</div>
+    </div>
+    <div class="slide-visual">
+      <div class="mock-popup" style="height:480px;">
+        <div class="mock-header">
+          <div class="mock-status"><div class="mock-status-dot"></div><span>23 tabs</span></div>
+          <div class="mock-header-actions"><div class="mock-avatar"></div></div>
+        </div>
+        <div class="mock-search">
+          <svg class="mock-search-icon icon-search" viewBox="0 0 16 16" fill="#636366"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+          <span class="mock-search-text">Search workspaces...</span>
+        </div>
+        <div class="mock-content">
+          <div class="mock-workspace" style="background:rgba(10,132,255,0.15);">
+            <span class="mock-chevron" style="display:inline-block;transform:rotate(90deg);font-size:10px;color:#636366;">&#9654;</span>
+            <svg class="mock-ws-icon" viewBox="0 0 16 16" fill="#007AFF"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-ws-name">Work — Development</span>
+            <span class="mock-ws-count" style="color:#636366;">8 tabs</span>
+          </div>
+          <div class="mock-tab" style="padding-left:20px;">
+            <div class="mock-favicon" style="background:#333;"><svg width="12" height="12" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">GitHub — tabdog/main</span>
+              <span class="mock-tab-meta">github.com</span>
+            </div>
+          </div>
+          <div class="mock-tab" style="padding-left:20px;">
+            <div class="mock-favicon" style="background:#1a73e8;">G</div>
+            <div class="mock-tab-info">
+              <span class="mock-tab-title">Firebase Console</span>
+              <span class="mock-tab-meta">console.firebase.google.com</span>
+            </div>
+          </div>
+
+          <div class="mock-workspace">
+            <span class="mock-chevron" style="font-size:10px;color:#636366;">&#9654;</span>
+            <svg class="mock-ws-icon" viewBox="0 0 16 16" fill="#34C759"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-ws-name">Research — AI/ML</span>
+            <span class="mock-ws-count" style="color:#636366;">12 tabs</span>
+          </div>
+          <div class="mock-workspace">
+            <span class="mock-chevron" style="font-size:10px;color:#636366;">&#9654;</span>
+            <svg class="mock-ws-icon" viewBox="0 0 16 16" fill="#AF52DE"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-ws-name">Side Project — Portfolio</span>
+            <span class="mock-ws-count" style="color:#636366;">5 tabs</span>
+          </div>
+          <div class="mock-workspace">
+            <span class="mock-chevron" style="font-size:10px;color:#636366;">&#9654;</span>
+            <svg class="mock-ws-icon" viewBox="0 0 16 16" fill="#FF9500"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-ws-name">Shopping — Wishlist</span>
+            <span class="mock-ws-count" style="color:#636366;">3 tabs</span>
+          </div>
+
+          <!-- New Workspace button -->
+          <div style="padding:10px 12px;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px 12px;border:1px dashed rgba(255,255,255,0.15);border-radius:8px;color:#636366;font-size:13px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+              New Workspace
+            </div>
+          </div>
+        </div>
+        <div class="mock-navbar">
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/><path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+            <span class="mock-nav-label">Tabs</span>
+          </div>
+          <div class="mock-nav-item active">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#0a84ff"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-nav-label" style="color:#0a84ff;">Spaces</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+            <span class="mock-nav-label">History</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SLIDE 5: DARK + LIGHT MODE / HISTORY
+     ============================================================ -->
+<p class="slide-label">Slide 5 — Dark &amp; Light Mode</p>
+<div class="slide slide-theme">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:16px;z-index:1;">
+    <div class="feature-label">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
+      HISTORY &amp; THEMING
+    </div>
+    <div class="feature-title" style="text-align:center;">Browse history.<br>Your preferred theme.</div>
+    <div class="feature-desc" style="text-align:center;max-width:520px;">View your last 7 days of browsing history with search and date grouping. Matches your system theme — or toggle manually.</div>
+  </div>
+  <div class="theme-popups" style="z-index:1;">
+    <!-- Dark mode popup (History page) -->
+    <div class="popup-wrapper">
+      <div class="mock-popup" style="height:420px;">
+        <div class="mock-header">
+          <div class="mock-status"><div class="mock-status-dot"></div><span>23 tabs</span></div>
+          <div class="mock-header-actions"><div class="mock-avatar"></div></div>
+        </div>
+        <div class="mock-content">
+          <div class="mock-history-date">Today</div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#333;"><svg width="12" height="12" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;">GitHub — tabdog repository</span>
+              <span class="mock-tab-meta">github.com</span>
+            </div>
+            <span class="mock-history-time">2:34 PM</span>
+          </div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#1a73e8;">G</div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;">Chrome Web Store — Developer</span>
+              <span class="mock-tab-meta">chrome.google.com</span>
+            </div>
+            <span class="mock-history-time">1:20 PM</span>
+          </div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#ff6d00;">S</div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;">Stack Overflow — Manifest V3</span>
+              <span class="mock-tab-meta">stackoverflow.com</span>
+            </div>
+            <span class="mock-history-time">12:45 PM</span>
+          </div>
+          <div class="mock-history-date">Yesterday</div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#ea4335;">Y</div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;">YouTube — Chrome Extension Tutorial</span>
+              <span class="mock-tab-meta">youtube.com</span>
+            </div>
+            <span class="mock-history-time">8:15 PM</span>
+          </div>
+        </div>
+        <div class="mock-navbar">
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/><path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+            <span class="mock-nav-label">Tabs</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#636366"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-nav-label">Spaces</span>
+          </div>
+          <div class="mock-nav-item active">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#0a84ff"><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+            <span class="mock-nav-label" style="color:#0a84ff;">History</span>
+          </div>
+        </div>
+      </div>
+      <div class="theme-label">Dark Mode</div>
+    </div>
+    <!-- Light mode popup (History page) -->
+    <div class="popup-wrapper">
+      <div class="mock-popup light" style="height:420px;">
+        <div class="mock-header">
+          <div class="mock-status"><div class="mock-status-dot"></div><span style="color:#86868b;">23 tabs</span></div>
+          <div class="mock-header-actions">
+            <div class="mock-avatar" style="background:linear-gradient(135deg, #007AFF, #5856D6);"></div>
+          </div>
+        </div>
+        <div class="mock-content">
+          <div class="mock-history-date">Today</div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#333;"><svg width="12" height="12" viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;color:#1d1d1f;">GitHub — tabdog repository</span>
+              <span class="mock-tab-meta">github.com</span>
+            </div>
+            <span class="mock-history-time" style="color:#86868b;">2:34 PM</span>
+          </div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#1a73e8;">G</div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;color:#1d1d1f;">Chrome Web Store — Developer</span>
+              <span class="mock-tab-meta">chrome.google.com</span>
+            </div>
+            <span class="mock-history-time" style="color:#86868b;">1:20 PM</span>
+          </div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#ff6d00;">S</div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;color:#1d1d1f;">Stack Overflow — Manifest V3</span>
+              <span class="mock-tab-meta">stackoverflow.com</span>
+            </div>
+            <span class="mock-history-time" style="color:#86868b;">12:45 PM</span>
+          </div>
+          <div class="mock-history-date">Yesterday</div>
+          <div class="mock-history-item">
+            <div class="mock-favicon" style="background:#ea4335;">Y</div>
+            <div class="mock-tab-info" style="flex:1;min-width:0;">
+              <span class="mock-tab-title" style="font-size:13px;color:#1d1d1f;">YouTube — Chrome Extension Tutorial</span>
+              <span class="mock-tab-meta">youtube.com</span>
+            </div>
+            <span class="mock-history-time" style="color:#86868b;">8:15 PM</span>
+          </div>
+        </div>
+        <div class="mock-navbar">
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#aeaeb2"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/><path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+            <span class="mock-nav-label" style="color:#aeaeb2;">Tabs</span>
+          </div>
+          <div class="mock-nav-item">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#aeaeb2"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>
+            <span class="mock-nav-label" style="color:#aeaeb2;">Spaces</span>
+          </div>
+          <div class="mock-nav-item active">
+            <svg class="icon-nav" viewBox="0 0 16 16" fill="#007aff"><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+            <span class="mock-nav-label" style="color:#007aff;">History</span>
+          </div>
+        </div>
+      </div>
+      <div class="theme-label">Light Mode</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+</style>
+
+</body>
+</html>

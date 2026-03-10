@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - TabDog Bridge</title>
+    <title>Privacy Policy - TabDog</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -153,60 +153,89 @@
         <header>
             <img src="tabdog-icon.png" alt="TabDog" class="logo">
             <h1>Privacy Policy</h1>
-            <p class="subtitle">TabDog Bridge — Chrome Extension</p>
-            <span class="effective-date">Effective Date: January 10, 2026</span>
+            <p class="subtitle">TabDog — Chrome Extension</p>
+            <span class="effective-date">Effective Date: March 11, 2026</span>
         </header>
 
         <main>
             <p>
-                TabDog Bridge ("the extension") is a companion Chrome extension for the TabDog macOS app. 
-                This policy explains what data the extension accesses and how it is used.
+                TabDog ("the extension") is a tab manager Chrome extension that helps you search, 
+                organize, and manage your browser tabs. This policy explains what data the extension 
+                accesses and how it is used.
             </p>
 
             <h2>Data the Extension Accesses</h2>
             <p>To provide its functionality, the extension accesses:</p>
             <ul>
                 <li><strong>Tab metadata:</strong> tab URL, title, favicon URL, active state, and window/tab IDs</li>
-                <li><strong>Local timestamps:</strong> tab creation/open time (stored locally in the browser)</li>
+                <li><strong>Recently closed sessions:</strong> tabs you've recently closed (via the Sessions API)</li>
+                <li><strong>Browsing history:</strong> your last 7 days of browsing history (via the History API)</li>
+                <li><strong>Local timestamps:</strong> tab creation/open times (stored locally in the browser)</li>
             </ul>
 
             <h2>How the Data is Used</h2>
             <p>The extension uses this data <strong>only</strong> to:</p>
             <ul>
-                <li>Display and search tabs in the TabDog macOS app</li>
-                <li>Allow tab actions from TabDog (activate tab, close tabs)</li>
-                <li>Sort tabs by opened time</li>
+                <li>Display, search, and manage your open tabs in the popup</li>
+                <li>Group tabs by domain and sort by last accessed time</li>
+                <li>Show and reopen recently closed tabs</li>
+                <li>Display browsing history with search and date grouping</li>
+                <li>Save and restore tab sets as workspaces</li>
             </ul>
 
-            <h2>Data Sharing & Selling</h2>
+            <h2>Cloud Sync (Optional)</h2>
+            <p>
+                If you choose to sign in with Google, the extension uses 
+                <code>chrome.identity</code> for authentication and stores the following in 
+                <strong>Google Firestore</strong>:
+            </p>
+            <ul>
+                <li>Your workspace data (workspace name, color, and saved tab URLs/titles)</li>
+                <li>Your device identifier (browser name and a generated ID)</li>
+                <li>Your open tab list (for cross-device sync)</li>
+            </ul>
+            <p>
+                This data is associated with your Google account and is used <strong>only</strong> 
+                to sync your data across your own devices. Background sync runs at regular intervals 
+                via the <code>chrome.alarms</code> API.
+            </p>
+            <p>
+                <strong>You can use TabDog without signing in.</strong> When not signed in, 
+                all data stays 100% local on your device.
+            </p>
+
+            <h2>Data Sharing &amp; Selling</h2>
             <div class="no-data">
                 <ul>
-                    <li>The extension <span class="highlight">does NOT sell</span> user data</li>
+                    <li>The extension <span class="highlight">does NOT sell</span> user data to anyone</li>
                     <li>The extension <span class="highlight">does NOT share</span> user data with third parties</li>
-                    <li>The extension <span class="highlight">does NOT transmit</span> data to any remote servers</li>
+                    <li>The extension <span class="highlight">does NOT use</span> any analytics or tracking</li>
+                    <li>The extension <span class="highlight">does NOT transmit</span> data to any server other than Google Firestore (only when signed in)</li>
                 </ul>
             </div>
 
-            <h2>Communication</h2>
-            <p>
-                The extension communicates <strong>only</strong> with the local TabDog macOS app using 
-                Chrome Native Messaging (<code>nativeMessaging</code> permission). 
-            </p>
-            <p>
-                This is a local-only communication channel via stdio pipes. 
-                <strong>All data stays on your device.</strong>
-            </p>
+            <h2>Permissions</h2>
+            <ul>
+                <li><strong><code>tabs</code></strong> — Read and manage open tabs (title, URL, favicon, activate, close, create)</li>
+                <li><strong><code>sessions</code></strong> — Retrieve recently closed tabs for quick reopening</li>
+                <li><strong><code>history</code></strong> — Display browsing history from the last 7 days</li>
+                <li><strong><code>storage</code></strong> — Save preferences, workspaces, and tab timestamps locally</li>
+                <li><strong><code>identity</code></strong> — Google OAuth sign-in for optional cloud sync</li>
+                <li><strong><code>alarms</code></strong> — Schedule background sync and session history snapshots</li>
+            </ul>
 
             <h2>Storage</h2>
             <p>
-                Tab creation timestamps are stored in <code>chrome.storage.local</code> on your device. 
-                This data is automatically cleaned up when tabs are closed.
+                Local data is stored in <code>chrome.storage.local</code> on your device, including:
+                tab creation timestamps, UI preferences, workspace data (when not signed in), 
+                and session history snapshots. This data is automatically cleaned up as needed.
             </p>
 
             <h2>Security</h2>
             <p>
-                The extension communicates only with the locally installed TabDog app. 
-                Users should install TabDog only from trusted sources.
+                Authentication is handled through Chrome's built-in identity API using Google OAuth.
+                Cloud data is stored in Google Firestore with security rules that restrict access 
+                to each user's own data. No custom backend servers are involved.
             </p>
 
             <h2>Changes to This Policy</h2>
@@ -224,7 +253,7 @@
 
         <footer>
             <p>
-                TabDog Bridge<br>
+                TabDog<br>
                 <a href="https://github.com/sung01299/tabdog">GitHub</a>
             </p>
         </footer>
