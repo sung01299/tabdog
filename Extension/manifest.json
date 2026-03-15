@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TabDog",
-  "version": "2.1.0",
-  "description": "Manage all your browser tabs in one place - search, group by domain, sync across devices, and quickly switch between tabs",
+  "version": "2.2.0",
+  "description": "Manage all your browser tabs in one place - search, group by domain, save workspaces, and quickly switch between tabs",
   "permissions": [
     "tabs",
     "tabGroups",
