@@ -5,6 +5,7 @@
   "description": "Manage all your browser tabs in one place - search, group by domain, sync across devices, and quickly switch between tabs",
   "permissions": [
     "tabs",
+    "tabGroups",
     "storage",
     "sessions",
     "identity",

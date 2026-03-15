@@ -1,19 +1,15 @@
 /**
  * Session History Service
  * 
- * Manages browsing session history with automatic saving and cloud sync.
+ * Manages browsing session history with local-only storage.
  */
-
-import { getCurrentUser } from './auth.js';
-import { firestoreSet, firestoreList, firestoreDelete } from './firestore.js';
-import { getDeviceId } from './device.js';
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const LOCAL_STORAGE_KEY = 'sessionHistory';
-const MAX_LOCAL_SESSIONS = 50; // Keep last 50 sessions locally
+const MAX_LOCAL_SESSIONS = 50;
 const DEFAULT_RETENTION_DAYS = 30;
 
 // ============================================================================
@@ -78,15 +74,12 @@ export function getSessionsByDate(days = DEFAULT_RETENTION_DAYS) {
 export async function saveSession(tabs) {
   if (!tabs || tabs.length === 0) return null;
   
-  const user = getCurrentUser();
-  const deviceId = await getDeviceId();
   const sessionId = generateId();
   const now = new Date();
   
   const session = {
     id: sessionId,
-    date: now.toISOString().split('T')[0], // YYYY-MM-DD
-    deviceId,
+    date: now.toISOString().split('T')[0],
     tabs: tabs.map(tab => ({
       url: tab.url,
       title: tab.title,
@@ -97,25 +90,13 @@ export async function saveSession(tabs) {
     closedAt: now.toISOString(),
   };
   
-  // Add to local cache
   sessionsCache.unshift(session);
   
-  // Trim to max local sessions
   if (sessionsCache.length > MAX_LOCAL_SESSIONS) {
     sessionsCache = sessionsCache.slice(0, MAX_LOCAL_SESSIONS);
   }
   
   await saveToLocalStorage();
-  
-  // Save to cloud if logged in
-  if (user) {
-    try {
-      await firestoreSet(`users/${user.uid}/sessions/${sessionId}`, session);
-    } catch (error) {
-      console.error('Failed to save session to cloud:', error);
-    }
-  }
-  
   notifyListeners();
   return session;
 }
@@ -133,7 +114,6 @@ export async function restoreSession(sessionId, mode = 'add') {
   }
   
   if (mode === 'replace') {
-    // Close all current tabs except pinned
     const currentTabs = await chrome.tabs.query({ currentWindow: true });
     const tabsToClose = currentTabs.filter(tab => !tab.pinned).map(tab => tab.id);
     
@@ -142,7 +122,6 @@ export async function restoreSession(sessionId, mode = 'add') {
     }
   }
   
-  // Open session tabs
   for (const tab of session.tabs) {
     await chrome.tabs.create({
       url: tab.url,
@@ -157,20 +136,8 @@ export async function restoreSession(sessionId, mode = 'add') {
  * @param {string} sessionId - Session ID
  */
 export async function deleteSession(sessionId) {
-  const user = getCurrentUser();
-  
   sessionsCache = sessionsCache.filter(s => s.id !== sessionId);
   await saveToLocalStorage();
-  
-  // Delete from cloud if logged in
-  if (user) {
-    try {
-      await firestoreDelete(`users/${user.uid}/sessions/${sessionId}`);
-    } catch (error) {
-      console.error('Failed to delete session from cloud:', error);
-    }
-  }
-  
   notifyListeners();
 }
 
@@ -179,61 +146,14 @@ export async function deleteSession(sessionId) {
  * @param {number} retentionDays - Number of days to keep
  */
 export async function cleanupOldSessions(retentionDays = DEFAULT_RETENTION_DAYS) {
-  const user = getCurrentUser();
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
   
-  const oldSessions = sessionsCache.filter(s => 
-    new Date(s.closedAt) < cutoffDate
-  );
-  
-  // Remove from local cache
   sessionsCache = sessionsCache.filter(s => 
     new Date(s.closedAt) >= cutoffDate
   );
   await saveToLocalStorage();
-  
-  // Delete from cloud
-  if (user) {
-    for (const session of oldSessions) {
-      try {
-        await firestoreDelete(`users/${user.uid}/sessions/${session.id}`);
-      } catch (error) {
-        console.error('Failed to delete old session from cloud:', error);
-      }
-    }
-  }
-  
   notifyListeners();
-}
-
-/**
- * Sync sessions with cloud
- */
-export async function syncSessions() {
-  const user = getCurrentUser();
-  if (!user) return;
-  
-  try {
-    // Fetch recent sessions from cloud
-    const cloudSessions = await firestoreList(`users/${user.uid}/sessions`);
-    
-    // Merge local and cloud
-    const merged = mergeSessions(sessionsCache, cloudSessions);
-    
-    // Keep only recent sessions
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - DEFAULT_RETENTION_DAYS);
-    
-    sessionsCache = merged
-      .filter(s => new Date(s.closedAt) >= cutoffDate)
-      .slice(0, MAX_LOCAL_SESSIONS);
-    
-    await saveToLocalStorage();
-    notifyListeners();
-  } catch (error) {
-    console.error('Failed to sync sessions:', error);
-  }
 }
 
 /**
@@ -252,46 +172,14 @@ export function onSessionsChanged(callback) {
 // PRIVATE HELPERS
 // ============================================================================
 
-/**
- * Save sessions to local storage
- */
 async function saveToLocalStorage() {
   await chrome.storage.local.set({ [LOCAL_STORAGE_KEY]: sessionsCache });
 }
 
-/**
- * Notify all listeners of session changes
- */
 function notifyListeners() {
   sessionListeners.forEach(cb => cb(sessionsCache));
 }
 
-/**
- * Generate a unique ID
- * @returns {string} Unique ID
- */
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-}
-
-/**
- * Merge local and cloud sessions
- * @param {Array} local - Local sessions
- * @param {Array} cloud - Cloud sessions
- * @returns {Array} Merged sessions
- */
-function mergeSessions(local, cloud) {
-  const merged = new Map();
-  
-  // Add all sessions by ID
-  for (const session of [...local, ...cloud]) {
-    if (!merged.has(session.id)) {
-      merged.set(session.id, session);
-    }
-  }
-  
-  // Sort by closedAt descending
-  return Array.from(merged.values()).sort((a, b) => 
-    new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()
-  );
 }

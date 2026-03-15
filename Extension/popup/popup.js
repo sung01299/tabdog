@@ -10,11 +10,9 @@
  * - Recently closed tabs
  * - Keyboard navigation
  * - Authentication and cloud sync
- * - Other devices tabs
  */
 
-import { initAuth, signInWithGoogle, signOut, onAuthStateChanged, getCurrentUser } from '../services/auth.js';
-import { getRemoteTabs, onRemoteTabsChanged } from '../services/sync.js';
+import { initAuth, signInWithGoogle, signOut, onAuthStateChanged, getCurrentUser, setCurrentUser } from '../services/auth.js';
 import { initWorkspaces, getWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, restoreWorkspace, syncWorkspaces, onWorkspacesChanged } from '../services/workspace.js';
 // Using chrome.history API instead of custom tab-history service
 import { createShareLink, EXPIRATION_OPTIONS } from '../services/share.js';
@@ -30,13 +28,11 @@ const state = {
   searchQuery: '',
   groupByDomain: true,
   expandedDomains: new Set(),
-  expandedDevices: new Set(),
   selectedIndex: -1, // -1 means search input is focused
   tabCreationTimes: {},
   recentlyClosedExpanded: false,
   theme: 'light', // 'light' or 'dark'
   user: null,
-  remoteTabs: {},
   workspaces: [],
   tabHistory: [],
   selectedWorkspaceId: null,
@@ -140,13 +136,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load saved preferences
   await loadPreferences();
   
-  // Quick load cached user for instant UI (before full auth init)
-  const cached = await chrome.storage.local.get(['user', 'remoteTabs']);
+  // Quick load cached user for instant UI (before full auth init).
+  // Also set auth.js's currentUser so that getCurrentUser() works immediately
+  // for Firestore writes, without waiting for initAuth() to complete.
+  const cached = await chrome.storage.local.get(['user']);
   if (cached.user) {
     state.user = cached.user;
-    if (cached.remoteTabs) {
-      state.remoteTabs = cached.remoteTabs;
-    }
+    setCurrentUser(cached.user);
   }
   // Always update auth UI to show correct screen
   updateAuthUI();
@@ -204,28 +200,14 @@ async function handleAuthStateChanged(user) {
       await loadTabHistory();
       elements.searchInput.focus();
     }
-    // Subscribe to remote tabs
-    onRemoteTabsChanged(handleRemoteTabsChanged);
-    // Fetch remote tabs immediately
-    getRemoteTabs();
     // Sync workspaces with cloud
     syncWorkspaces();
   } else {
-    state.remoteTabs = {};
     state.workspaces = [];
     state.tabHistory = [];
-    renderOtherDevices();
     renderWorkspaces();
     renderHistoryPage();
   }
-}
-
-/**
- * Handle remote tabs updates
- */
-function handleRemoteTabsChanged(remoteTabs) {
-  state.remoteTabs = remoteTabs;
-  renderOtherDevices();
 }
 
 /**
@@ -253,11 +235,9 @@ function updateAuthUI() {
 
 async function loadPreferences() {
   try {
-    const result = await chrome.storage.local.get(['expandedDomains', 'expandedDevices', 'recentlyClosedExpanded', 'otherDevicesExpanded', 'theme']);
+    const result = await chrome.storage.local.get(['expandedDomains', 'recentlyClosedExpanded', 'theme']);
     if (result.expandedDomains) state.expandedDomains = new Set(result.expandedDomains);
-    if (result.expandedDevices) state.expandedDevices = new Set(result.expandedDevices);
     if (typeof result.recentlyClosedExpanded === 'boolean') state.recentlyClosedExpanded = result.recentlyClosedExpanded;
-    if (typeof result.otherDevicesExpanded === 'boolean') state.otherDevicesExpanded = result.otherDevicesExpanded;
     if (result.theme) state.theme = result.theme;
     
     applyTheme();
@@ -271,9 +251,7 @@ async function savePreferences() {
   try {
     await chrome.storage.local.set({
       expandedDomains: Array.from(state.expandedDomains),
-      expandedDevices: Array.from(state.expandedDevices),
       recentlyClosedExpanded: state.recentlyClosedExpanded,
-      otherDevicesExpanded: state.otherDevicesExpanded,
       theme: state.theme,
     });
   } catch (error) {
@@ -494,93 +472,6 @@ function render() {
   elements.emptyState.style.display = hasAnyResults ? 'none' : 'flex';
 }
 
-// ============================================================================
-// OTHER DEVICES
-// ============================================================================
-
-function renderOtherDevices() {
-  // This function is now deprecated - devices are shown on a separate page
-  // Re-render devices page if currently on it
-  if (state.currentPage === 'devices') {
-    renderDevicesPage();
-  }
-}
-
-function renderDeviceTabItem(tab, deviceId) {
-  return `
-    <div class="device-tab-item" data-url="${escapeHtml(tab.url)}" data-device-id="${deviceId}">
-      ${tab.favIconUrl 
-        ? `<img class="device-tab-favicon" src="${escapeHtml(tab.favIconUrl)}" onerror="this.outerHTML='<svg class=\\'device-tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
-        : `<svg class="device-tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
-      }
-      <div class="device-tab-info">
-        <div class="device-tab-title">${escapeHtml(truncateTitle(tab.title || 'Untitled', 50))}</div>
-        <div class="device-tab-url">${escapeHtml(getDomain(tab.url))}</div>
-      </div>
-      <button class="open-tab-btn" title="Open in this browser">
-        <svg viewBox="0 0 16 16" fill="currentColor">
-          <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
-          <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
-        </svg>
-        Open
-      </button>
-    </div>
-  `;
-}
-
-function attachDeviceEventListeners() {
-  // Device header click (expand/collapse)
-  document.querySelectorAll('.device-header').forEach(header => {
-    header.addEventListener('click', () => {
-      const deviceId = header.closest('.device-group').dataset.deviceId;
-      toggleDevice(deviceId);
-    });
-  });
-  
-  // Device tab item click (open in current browser)
-  document.querySelectorAll('.device-tab-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-      if (!e.target.closest('.open-tab-btn')) {
-        openRemoteTab(item.dataset.url);
-      }
-    });
-    
-    const openBtn = item.querySelector('.open-tab-btn');
-    if (openBtn) {
-      openBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openRemoteTab(item.dataset.url);
-      });
-    }
-  });
-}
-
-function toggleDevice(deviceId) {
-  if (state.expandedDevices.has(deviceId)) {
-    state.expandedDevices.delete(deviceId);
-  } else {
-    state.expandedDevices.add(deviceId);
-  }
-  savePreferences();
-  renderOtherDevices();
-}
-
-function toggleOtherDevices() {
-  state.otherDevicesExpanded = !state.otherDevicesExpanded;
-  elements.otherDevicesSection.classList.toggle('expanded', state.otherDevicesExpanded);
-  elements.otherDevicesHeader.classList.toggle('expanded', state.otherDevicesExpanded);
-  savePreferences();
-}
-
-async function openRemoteTab(url) {
-  try {
-    await chrome.tabs.create({ url, active: true });
-    window.close();
-  } catch (error) {
-    console.error('Failed to open remote tab:', error);
-  }
-}
-
 function renderFlat() {
   elements.tabList.innerHTML = state.filteredTabs.map((tab, index) => 
     renderTabItem(tab, index)
@@ -796,11 +687,9 @@ function setupEventListeners() {
       
       // Clear local state immediately
       state.user = null;
-      state.remoteTabs = {};
       
       // Update UI
       updateAuthUI();
-      renderOtherDevices();
       elements.userDropdown.style.display = 'none';
       
     } catch (error) {
@@ -818,29 +707,6 @@ function setupEventListeners() {
     }
   });
   
-  // Event delegation for Other Devices page
-  elements.otherDevicesList.addEventListener('click', (e) => {
-    // Device header click (expand/collapse)
-    const header = e.target.closest('.device-header');
-    if (header) {
-      const group = header.closest('.device-group');
-      const isExpanded = group.classList.contains('expanded');
-      group.classList.toggle('expanded', !isExpanded);
-      header.classList.toggle('expanded', !isExpanded);
-      const tabs = group.querySelector('.device-tabs');
-      tabs.style.display = isExpanded ? 'none' : 'block';
-      return;
-    }
-    
-    // Device tab item click (open tab)
-    const tabItem = e.target.closest('.device-tab-item');
-    if (tabItem) {
-      const url = tabItem.dataset.url;
-      if (url) {
-        openRemoteTab(url);
-      }
-    }
-  });
 }
 
 function attachTabEventListeners() {
@@ -1003,22 +869,6 @@ function handleKeyDown(e) {
         } else if (item.classList.contains('domain-header')) {
           const domain = item.closest('.domain-group').dataset.domain;
           toggleDomain(domain);
-        } else if (item.classList.contains('device-header')) {
-          const deviceGroup = item.closest('.device-group');
-          if (deviceGroup) {
-            const isExpanded = deviceGroup.classList.contains('expanded');
-            deviceGroup.classList.toggle('expanded', !isExpanded);
-            item.classList.toggle('expanded', !isExpanded);
-            const tabs = deviceGroup.querySelector('.device-tabs');
-            if (tabs) {
-              tabs.style.display = isExpanded ? 'none' : 'block';
-            }
-          }
-        } else if (item.classList.contains('device-tab-item')) {
-          const url = item.dataset.url;
-          if (url) {
-            openRemoteTab(url);
-          }
         } else if (item.classList.contains('workspace-header')) {
           const workspaceGroup = item.closest('.workspace-group');
           if (workspaceGroup) {
@@ -1037,13 +887,7 @@ function handleKeyDown(e) {
             window.close();
           }
         } else if (item.classList.contains('section-header')) {
-          // Check which section header it is
-          const section = item.closest('section');
-          if (section && section.id === 'otherDevicesSection') {
-            toggleOtherDevices();
-          } else {
-            toggleRecentlyClosed();
-          }
+          toggleRecentlyClosed();
         }
       }
       break;
@@ -1082,14 +926,6 @@ function getSelectableItems() {
     // If Recently Closed is collapsed, exclude its items
     if (!state.recentlyClosedExpanded && item.classList.contains('recently-closed-item')) {
       return false;
-    }
-    
-    // If device group is collapsed, exclude its tabs
-    if (item.classList.contains('device-tab-item')) {
-      const deviceGroup = item.closest('.device-group');
-      if (deviceGroup && !deviceGroup.classList.contains('expanded')) {
-        return false;
-      }
     }
     
     // If workspace group is collapsed, exclude its tabs
@@ -1855,58 +1691,7 @@ function switchPage(pageName) {
 }
 
 function renderDevicesPage() {
-  // state.remoteTabs structure: { deviceId: { device: {...}, tabs: [...] } }
-  const deviceEntries = Object.entries(state.remoteTabs);
-  const devicesWithTabs = deviceEntries.filter(([id, data]) => data.tabs && data.tabs.length > 0);
-  
-  if (devicesWithTabs.length === 0) {
-    elements.otherDevicesList.innerHTML = '';
-    elements.emptyDevicesState.style.display = 'flex';
-    return;
-  }
-  
-  elements.emptyDevicesState.style.display = 'none';
-  
-  elements.otherDevicesList.innerHTML = devicesWithTabs.map(([deviceId, data]) => {
-    const device = data.device;
-    const tabs = data.tabs;
-    const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
-    const isOnline = Date.now() - lastSeenTime < 2 * 60 * 1000; // 2 minutes (sync interval is 1 min)
-    const statusClass = isOnline ? 'online' : 'offline';
-    const statusText = isOnline ? 'Online' : 'Offline';
-    
-    return `
-      <div class="device-group expanded" data-device-id="${deviceId}">
-        <div class="device-header expanded" tabindex="0">
-          <svg class="device-chevron" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z"/>
-          </svg>
-          <svg class="device-icon" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2z"/>
-            <path d="M6 13.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
-          </svg>
-          <span class="device-name">${escapeHtml(device.name)}</span>
-          <span class="device-status ${statusClass}"></span>
-          <span class="device-tab-count">${tabs.length} tabs</span>
-        </div>
-        <div class="device-tabs" style="display: block;">
-          ${tabs.map(tab => `
-            <div class="device-tab-item" data-url="${escapeHtml(tab.url)}" data-device-id="${deviceId}">
-              ${tab.favIconUrl 
-                ? `<img class="device-tab-favicon" src="${escapeHtml(tab.favIconUrl)}" onerror="this.outerHTML='<svg class=\\'device-tab-favicon default\\' viewBox=\\'0 0 16 16\\' fill=\\'currentColor\\'><path d=\\'M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z\\'/></svg>'">`
-                : `<svg class="device-tab-favicon default" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/></svg>`
-              }
-              <div class="device-tab-info">
-                <span class="device-tab-title">${escapeHtml(tab.title || 'Untitled')}</span>
-                <span class="device-tab-url">${escapeHtml(new URL(tab.url).hostname)}</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  }).join('');
-  
+  // Devices feature removed
 }
 
 function renderWorkspacesPage() {
