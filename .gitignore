@@ -47,9 +47,10 @@ pnpm-debug.log*
 Extension/config/firebase-config.js
 
 ################################################################################
-# Build artifacts (desktop packaging)
+# Build artifacts
 ################################################################################
 dist/
+Extension/dist/
 *.dmg
 *.icns
 *.rsrc
