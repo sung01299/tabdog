@@ -143,7 +143,26 @@ export async function deleteWorkspace(workspaceId) {
 }
 
 /**
- * Restore a workspace (open its tabs)
+ * Map TabDog color names to Chrome tabGroups color names.
+ * Chrome supports: grey, blue, red, yellow, green, pink, purple, cyan, orange
+ */
+const TAB_GROUP_COLOR_MAP = {
+  blue: 'blue',
+  purple: 'purple',
+  pink: 'pink',
+  red: 'red',
+  orange: 'orange',
+  yellow: 'yellow',
+  green: 'green',
+  teal: 'cyan',
+  gray: 'grey',
+};
+
+/**
+ * Restore a workspace (open its tabs as a native Chrome tab group)
+ * Tab creation and grouping run in the popup.
+ * The group title/color update is delegated to the background service worker
+ * and awaited, so the popup stays alive until the update completes.
  * @param {string} workspaceId - Workspace ID
  */
 export async function restoreWorkspace(workspaceId) {
@@ -153,43 +172,99 @@ export async function restoreWorkspace(workspaceId) {
     throw new Error('Workspace not found');
   }
   
-  // Open all workspace tabs
-  for (const tab of workspace.tabs) {
-    await chrome.tabs.create({
-      url: tab.url,
-      pinned: tab.pinned,
-      active: false,
-    });
+  const pinnedTabs = workspace.tabs.filter(t => t.pinned);
+  const normalTabs = workspace.tabs.filter(t => !t.pinned);
+
+  for (const tab of pinnedTabs) {
+    await chrome.tabs.create({ url: tab.url, pinned: true, active: false });
+  }
+
+  const createdTabIds = [];
+  for (const tab of normalTabs) {
+    const created = await chrome.tabs.create({ url: tab.url, active: false });
+    createdTabIds.push(created.id);
+  }
+
+  if (createdTabIds.length > 0) {
+    const groupId = await chrome.tabs.group({ tabIds: createdTabIds });
+
+    // Delegate title/color update to background service worker and AWAIT the response.
+    // This keeps the popup alive until the background confirms the update.
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'updateTabGroup',
+        groupId,
+        title: workspace.name,
+        color: TAB_GROUP_COLOR_MAP[workspace.color] || 'blue',
+      });
+    } catch (error) {
+      console.warn('[Workspace] Background tab group update failed, trying directly:', error);
+      try {
+        await chrome.tabGroups.update(groupId, {
+          title: workspace.name,
+          color: TAB_GROUP_COLOR_MAP[workspace.color] || 'blue',
+        });
+      } catch (e) {
+        console.warn('[Workspace] Direct tab group update also failed:', e);
+      }
+    }
   }
   
-  console.log(`[Workspace] Opened ${workspace.tabs.length} tabs`);
-  
-  // Update last used timestamp
-  await updateWorkspace(workspaceId, { lastUsedAt: new Date().toISOString() });
+  console.log(`[Workspace] Opened ${workspace.tabs.length} tabs as group "${workspace.name}"`);
 }
 
 /**
- * Sync workspaces with cloud
- * Cloud is the primary source of truth - local changes should be pushed immediately
+ * Sync workspaces with cloud using two-way merge.
+ * - Workspaces only in cloud → add locally
+ * - Workspaces only locally → push to cloud
+ * - Workspaces in both → keep the one with the newer updatedAt
  */
 export async function syncWorkspaces() {
   const user = getCurrentUser();
   if (!user) return;
   
   try {
-    // Fetch from cloud - this is the source of truth
+    // Always reload from local storage first so the background service worker
+    // (which never calls initWorkspaces) has the latest local data.
+    const stored = await chrome.storage.local.get([LOCAL_STORAGE_KEY]);
+    workspacesCache = stored[LOCAL_STORAGE_KEY] || [];
+
     const cloudWorkspaces = await firestoreList(`users/${user.uid}/workspaces`);
     
-    // Replace local cache with cloud data
-    workspacesCache = cloudWorkspaces.sort((a, b) => 
+    const cloudMap = new Map(cloudWorkspaces.map(w => [w.id, w]));
+    const localMap = new Map(workspacesCache.map(w => [w.id, w]));
+    const merged = [];
+    
+    // Process cloud workspaces
+    for (const [id, cloudW] of cloudMap) {
+      const localW = localMap.get(id);
+      if (!localW) {
+        merged.push(cloudW);
+      } else {
+        const cloudTime = new Date(cloudW.updatedAt || 0).getTime();
+        const localTime = new Date(localW.updatedAt || 0).getTime();
+        merged.push(cloudTime >= localTime ? cloudW : localW);
+      }
+      localMap.delete(id);
+    }
+    
+    // Local-only workspaces: keep locally and push to cloud
+    for (const [id, localW] of localMap) {
+      merged.push(localW);
+      try {
+        await firestoreSet(`users/${user.uid}/workspaces/${id}`, localW);
+      } catch (e) {
+        console.warn('[Workspace] Failed to push local workspace to cloud:', e);
+      }
+    }
+    
+    workspacesCache = merged.sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
     await saveToLocalStorage();
-    
-    // Update sync timestamp
     await chrome.storage.local.set({ [SYNC_KEY]: Date.now() });
     
-    console.log(`[Workspace] Synced ${workspacesCache.length} workspaces from cloud`);
+    console.log(`[Workspace] Synced ${workspacesCache.length} workspaces (cloud: ${cloudWorkspaces.length}, local-only pushed: ${localMap.size})`);
     
     notifyListeners();
   } catch (error) {

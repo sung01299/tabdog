@@ -128,6 +128,17 @@ export function getCurrentUser() {
 }
 
 /**
+ * Set current user from cached storage data.
+ * Called early during popup init so that getCurrentUser() returns a value
+ * before initAuth() completes its async token refresh.
+ */
+export function setCurrentUser(user) {
+  if (!currentUser && user) {
+    currentUser = user;
+  }
+}
+
+/**
  * Get the current ID token (for API calls)
  * @returns {Promise<string|null>} ID token or null
  */
