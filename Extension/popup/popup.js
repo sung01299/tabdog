@@ -1174,10 +1174,12 @@ function updateThemeIcon() {
 
 function getDomain(url) {
   try {
-    if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
-      return url ? new URL(url).hostname || 'chrome' : 'unknown';
+    if (!url) return 'unknown';
+    if (url.startsWith('file://')) return 'Local Files';
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+      return new URL(url).hostname || 'chrome';
     }
-    return new URL(url).hostname.replace(/^www\./, '');
+    return new URL(url).hostname.replace(/^www\./, '') || 'unknown';
   } catch {
     return 'unknown';
   }
