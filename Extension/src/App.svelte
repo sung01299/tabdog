@@ -2,6 +2,8 @@
   import { themeStore } from './lib/stores/theme.svelte.js';
   import { authStore } from './lib/stores/auth.svelte.js';
   import { navigationStore } from './lib/stores/navigation.svelte.js';
+  import { tabsStore } from './lib/stores/tabs.svelte.js';
+  import { workspacesStore } from './lib/stores/workspaces.svelte.js';
 
   import LoginScreen from './lib/pages/LoginScreen.svelte';
   import Header from './lib/components/Header.svelte';
@@ -16,6 +18,15 @@
   $effect(() => {
     themeStore.init();
     authStore.init();
+  });
+
+  let prevLoggedIn = $state(false);
+  $effect(() => {
+    if (authStore.isLoggedIn && !prevLoggedIn) {
+      tabsStore.init();
+      workspacesStore.init();
+    }
+    prevLoggedIn = authStore.isLoggedIn;
   });
 </script>
 

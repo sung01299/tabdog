@@ -1,16 +1,59 @@
 <script>
-  /* Phase 3: Tab list, domain grouping, recently closed */
+  import { tabsStore } from '../stores/tabs.svelte.js';
+  import TabItem from '../components/TabItem.svelte';
+  import DomainGroup from '../components/DomainGroup.svelte';
+  import RecentlyClosed from '../components/RecentlyClosed.svelte';
+
+  let { searchQuery = '' } = $props();
+
+  $effect(() => {
+    tabsStore.searchQuery = searchQuery;
+  });
+
+  const { domainGroups, filtered, filteredRecentlyClosed, recentlyClosed } = $derived(tabsStore);
+  const hasResults = $derived(filtered.length > 0 || filteredRecentlyClosed.length > 0);
 </script>
 
 <div class="page">
   <div class="scrollable-content">
-    <div class="placeholder">
-      <svg class="placeholder-icon" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/>
-        <path d="M2.5 4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
-      </svg>
-      <span>Tabs page — will be implemented in Phase 3</span>
-    </div>
+    <main class="tab-list">
+      {#if filtered.length === 0 && filteredRecentlyClosed.length === 0}
+        <div class="empty-state">
+          <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h10V3H3z"/>
+          </svg>
+          <span>No tabs found</span>
+        </div>
+      {:else}
+        {#each domainGroups.groups as group (group.domain)}
+          <DomainGroup
+            {group}
+            expanded={tabsStore.isDomainExpanded(group.domain)}
+            ontoggle={(d) => tabsStore.toggleDomain(d)}
+            onactivate={(id) => tabsStore.activateTab(id)}
+            onclose={(id) => tabsStore.closeTab(id)}
+            oncloseall={(d) => tabsStore.closeAllInDomain(d)}
+          />
+        {/each}
+
+        {#each domainGroups.singles as tab (tab.id)}
+          <TabItem
+            {tab}
+            onactivate={(id) => tabsStore.activateTab(id)}
+            onclose={(id) => tabsStore.closeTab(id)}
+          />
+        {/each}
+      {/if}
+    </main>
+
+    <RecentlyClosed
+      tabs={filteredRecentlyClosed}
+      totalCount={recentlyClosed.length}
+      expanded={tabsStore.recentlyClosedExpanded}
+      searching={!!searchQuery}
+      ontoggle={() => tabsStore.toggleRecentlyClosed()}
+      onreopen={(sid) => tabsStore.reopenTab(sid)}
+    />
   </div>
 </div>
 
@@ -29,7 +72,20 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
-  .placeholder {
+  .scrollable-content::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollable-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollable-content::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+  }
+  .scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+  }
+  .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -37,11 +93,8 @@
     gap: 12px;
     padding: 40px 20px;
     color: var(--text-secondary);
-    height: 100%;
-    text-align: center;
-    font-size: 13px;
   }
-  .placeholder-icon {
+  .empty-icon {
     width: 32px;
     height: 32px;
     color: var(--text-tertiary);
