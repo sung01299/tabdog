@@ -1,4 +1,5 @@
 <script>
+  import { slide } from 'svelte/transition';
   import Favicon from './Favicon.svelte';
   import { getDomain } from '../utils.js';
 
@@ -41,7 +42,7 @@
     </button>
   </div>
   {#if expanded}
-    <div class="workspace-tabs">
+    <div class="workspace-tabs" transition:slide={{ duration: 150 }}>
       {#each workspace.tabs as tab, i}
         {@const domain = getDomain(tab.url)}
         <div class="workspace-tab-item" onclick={() => { chrome.tabs.create({ url: tab.url, active: true }); window.close(); }}>

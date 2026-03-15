@@ -1,5 +1,6 @@
 <script>
   import { workspacesStore } from '../stores/workspaces.svelte.js';
+  import { modalStore } from '../stores/modal.svelte.js';
   import WorkspaceCard from '../components/WorkspaceCard.svelte';
 
   async function handleDelete(id) {
@@ -9,22 +10,15 @@
   }
 
   function handleEdit(id) {
-    // Phase 4: will open SaveWorkspaceModal in edit mode
-    console.log('[TODO Phase 4] Edit workspace:', id);
+    modalStore.open('saveWorkspace', { editWorkspaceId: id });
   }
 
-  async function handleRestore(id) {
-    try {
-      await workspacesStore.restore(id);
-    } catch (e) {
-      console.error('Failed to restore workspace:', e);
-      alert('Failed to restore workspace');
-    }
+  function handleRestore(id) {
+    modalStore.open('restoreWorkspace', { workspaceId: id });
   }
 
   function handleNewWorkspace() {
-    // Phase 4: will open SaveWorkspaceModal
-    console.log('[TODO Phase 4] New workspace');
+    modalStore.open('saveWorkspace');
   }
 </script>
 

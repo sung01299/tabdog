@@ -1,4 +1,5 @@
 <script>
+  import { slide } from 'svelte/transition';
   import TabItem from './TabItem.svelte';
   import Favicon from './Favicon.svelte';
 
@@ -25,7 +26,7 @@
     </button>
   </div>
   {#if expanded}
-    <div class="domain-tabs">
+    <div class="domain-tabs" transition:slide={{ duration: 150 }}>
       {#each group.tabs as tab (tab.id)}
         <TabItem {tab} {onactivate} {onclose} />
       {/each}

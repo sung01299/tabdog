@@ -1,6 +1,7 @@
 <script>
   import { themeStore } from '../stores/theme.svelte.js';
   import { authStore } from '../stores/auth.svelte.js';
+  import { modalStore } from '../stores/modal.svelte.js';
   import UserDropdown from './UserDropdown.svelte';
 
   let showDropdown = $state(false);
@@ -31,6 +32,11 @@
     <span class="status-text">Connected</span>
   </div>
   <div class="header-right">
+    <button class="header-btn" onclick={() => modalStore.open('share')} title="Share tabs">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.499 2.499 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5zm-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+      </svg>
+    </button>
     <button class="header-btn" onclick={themeStore.toggle} title={themeStore.isDark ? 'Dark mode' : 'Light mode'}>
       <svg viewBox="0 0 16 16" fill="currentColor">
         {#if themeStore.isDark}

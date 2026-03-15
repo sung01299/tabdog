@@ -1,4 +1,5 @@
 <script>
+  import { slide } from 'svelte/transition';
   import Favicon from './Favicon.svelte';
   import { getRelativeTime } from '../utils.js';
 
@@ -25,7 +26,7 @@
       <span class="section-count">{countDisplay}</span>
     </div>
     {#if isExpanded}
-      <div class="recently-closed-list">
+      <div class="recently-closed-list" transition:slide={{ duration: 150 }}>
         {#each tabs as tab (tab.sessionId)}
           <div class="recently-closed-item" onclick={() => onreopen?.(tab.sessionId)}>
             <Favicon src={tab.favIconUrl} alt={tab.domain} />
