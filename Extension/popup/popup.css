@@ -162,6 +162,7 @@ html, body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   min-height: 0;
 }
 
@@ -642,28 +643,33 @@ html, body {
 }
 
 .tab-close {
-  display: none;
-  padding: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
   background: none;
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-tertiary);
+  color: var(--danger-color);
   cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  opacity: 0;
+  pointer-events: none;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
 }
 
 .tab-item:hover .tab-close {
-  display: block;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tab-close:hover {
-  background: var(--bg-tertiary);
-  color: var(--danger-color);
+  background: rgba(255, 59, 48, 0.1);
 }
 
 .tab-close svg {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
 }
 
 /* Domain Group */
@@ -726,7 +732,9 @@ html, body {
 }
 
 .domain-close-all {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 8px;
   font-size: 11px;
   color: var(--danger-color);
@@ -734,13 +742,14 @@ html, body {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--transition-fast);
+  opacity: 0;
+  pointer-events: none;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
 }
 
 .domain-header:hover .domain-close-all {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .domain-close-all:hover {
@@ -1137,6 +1146,7 @@ html, body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 
 .page-header {
@@ -1719,6 +1729,37 @@ html, body {
 .recently-closed-item:focus {
   outline: none;
   background: var(--bg-selected-strong);
+}
+
+/* Keyboard navigation selection (applied via JS) */
+.tab-item.selected,
+.domain-header.selected,
+.section-header.selected,
+.item.selected,
+.card-header.selected,
+.tab-row.selected,
+.history-item.selected {
+  background: var(--bg-selected) !important;
+  outline: none;
+}
+
+.tab-item.selected .tab-close {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.domain-header.selected .close-all-btn {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.item.selected .reopen-btn {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.card-header.selected .action-btn {
+  opacity: 1 !important;
 }
 
 /* Animation for items */
