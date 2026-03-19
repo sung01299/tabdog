@@ -62,36 +62,40 @@
 
 <div class="page">
   <div class="scrollable-content">
-    <div class="history-search-bar">
-      <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-      </svg>
-      <input type="text" placeholder="Search history..." value={searchText} oninput={handleSearchInput} autocomplete="off">
+    <div class="search-bar">
+      <div class="search-field">
+        <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+        </svg>
+        <input type="text" placeholder="Search history..." value={searchText} oninput={handleSearchInput} autocomplete="off">
+      </div>
     </div>
 
     {#if empty}
       <div class="empty-state">
         <svg class="empty-icon" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933z"/>
           <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
           <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
         </svg>
-        <span>No tab history</span>
-        <p class="empty-hint">Your opened and closed tabs will appear here</p>
+        <span>No history found</span>
+        <p class="empty-hint">Your browsing history will appear here</p>
       </div>
     {:else}
       {#each historyByDate as dateGroup (dateGroup.date)}
-        <div class="history-date-group">
-          <div class="history-date-header">{formatDate(dateGroup.date)}</div>
+        <div class="date-group">
+          <div class="date-header">
+            <span class="date-label">{formatDate(dateGroup.date)}</span>
+            <span class="date-count">{dateGroup.items.length}</span>
+          </div>
           {#each dateGroup.items as item (item.id + '-' + item.lastVisitTime)}
             {@const domain = getDomain(item.url)}
             <div class="history-item" onclick={() => openUrl(item.url)}>
               <Favicon src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt={domain} />
-              <div class="history-item-info">
-                <span class="history-item-title">{item.title || domain}</span>
-                <span class="history-item-url">{domain}</span>
+              <div class="item-info">
+                <span class="item-title">{item.title || domain}</span>
+                <span class="item-url">{domain}</span>
               </div>
-              <span class="history-item-time">{formatTime(new Date(item.lastVisitTime).toISOString())}</span>
+              <span class="item-time">{formatTime(new Date(item.lastVisitTime).toISOString())}</span>
             </div>
           {/each}
         </div>
@@ -114,6 +118,7 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
   }
   .scrollable-content::-webkit-scrollbar {
     width: 6px;
@@ -125,24 +130,36 @@
     background: var(--border-color);
     border-radius: 4px;
   }
-  .history-search-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .search-bar {
     padding: 8px 12px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--divider-color);
     position: sticky;
     top: 0;
     z-index: 10;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--divider-color);
+  }
+  .search-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    border: 1.5px solid transparent;
+    transition: all 0.15s ease;
+  }
+  .search-field:focus-within {
+    border-color: var(--accent-color);
+    background: var(--bg-primary);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
   }
   .search-icon {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
     color: var(--text-tertiary);
     flex-shrink: 0;
   }
-  .history-search-bar input {
+  .search-field input {
     flex: 1;
     border: none;
     background: transparent;
@@ -151,7 +168,7 @@
     outline: none;
     font-family: inherit;
   }
-  .history-search-bar input::placeholder {
+  .search-field input::placeholder {
     color: var(--text-tertiary);
   }
   .empty-state {
@@ -159,69 +176,82 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 40px 20px;
+    gap: 8px;
+    padding: 60px 20px;
     color: var(--text-secondary);
   }
   .empty-icon {
     width: 32px;
     height: 32px;
     color: var(--text-tertiary);
+    margin-bottom: 4px;
   }
   .empty-hint {
     font-size: 11px;
     color: var(--text-tertiary);
-    margin-top: 4px;
   }
-  .history-date-group {
-    margin-bottom: 8px;
+  .date-group {
+    margin-bottom: 4px;
   }
-  .history-date-header {
+  .date-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 12px;
+    background: var(--bg-secondary);
+    position: sticky;
+    top: 0;
+  }
+  .date-label {
     font-size: 11px;
     font-weight: 600;
     color: var(--text-secondary);
-    background: var(--bg-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    position: sticky;
-    top: 0;
+  }
+  .date-count {
+    padding: 0px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border-radius: 100px;
   }
   .history-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.1s ease;
     border-bottom: 1px solid var(--divider-color);
   }
   .history-item:hover {
     background: var(--bg-hover);
   }
-  .history-item-info {
+  .item-info {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
   }
-  .history-item-title {
-    font-size: 13px;
+  .item-title {
+    font-size: 12px;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .history-item-url {
-    font-size: 11px;
+  .item-url {
+    font-size: 10px;
     color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .history-item-time {
-    font-size: 11px;
+  .item-time {
+    font-size: 10px;
     color: var(--text-tertiary);
     flex-shrink: 0;
     white-space: nowrap;

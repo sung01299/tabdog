@@ -18,17 +18,17 @@
 </script>
 
 <div class="user-dropdown">
-  <div class="user-dropdown-header">
-    <img class="user-dropdown-avatar" src={authStore.avatarUrl} alt="User">
-    <div class="user-dropdown-info">
-      <div class="user-dropdown-name">{authStore.user?.displayName || 'User'}</div>
-      <div class="user-dropdown-email">{authStore.user?.email || ''}</div>
+  <div class="dropdown-header">
+    <img class="avatar" src={authStore.avatarUrl} alt="User">
+    <div class="user-info">
+      <span class="user-name">{authStore.user?.displayName || 'User'}</span>
+      <span class="user-email">{authStore.user?.email || ''}</span>
     </div>
   </div>
-  <div class="user-dropdown-divider"></div>
-  <button class="user-dropdown-item" onclick={handleSignOut} disabled={signingOut}>
+  <div class="divider"></div>
+  <button class="dropdown-item" onclick={handleSignOut} disabled={signingOut}>
     {#if signingOut}
-      <div class="btn-spinner"></div>
+      <div class="spinner"></div>
       Signing out...
     {:else}
       <svg viewBox="0 0 16 16" fill="currentColor">
@@ -43,78 +43,83 @@
 <style>
   .user-dropdown {
     position: absolute;
-    top: 44px;
-    right: 8px;
+    top: 48px;
+    right: 10px;
     width: 220px;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     z-index: 100;
     overflow: hidden;
   }
-  .user-dropdown-header {
+  .dropdown-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px;
+    padding: 14px;
   }
-  .user-dropdown-avatar {
-    width: 36px;
-    height: 36px;
+  .avatar {
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     object-fit: cover;
   }
-  .user-dropdown-info {
+  .user-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
-  .user-dropdown-name {
+  .user-name {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .user-dropdown-email {
+  .user-email {
     font-size: 11px;
-    color: var(--text-secondary);
+    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .user-dropdown-divider {
+  .divider {
     height: 1px;
     background: var(--divider-color);
+    margin: 0 10px;
   }
-  .user-dropdown-item {
+  .dropdown-item {
     display: flex;
     align-items: center;
     gap: 10px;
     width: 100%;
-    padding: 10px 12px;
+    padding: 10px 14px;
     font-size: 13px;
     color: var(--text-primary);
     background: none;
     border: none;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.1s ease;
     text-align: left;
+    font-family: inherit;
   }
-  .user-dropdown-item:hover {
+  .dropdown-item:hover {
     background: var(--bg-hover);
   }
-  .user-dropdown-item svg {
-    width: 16px;
-    height: 16px;
-    color: var(--text-secondary);
+  .dropdown-item svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-tertiary);
   }
-  .user-dropdown-item:disabled {
+  .dropdown-item:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-  .btn-spinner {
+  .spinner {
     width: 14px;
     height: 14px;
     border: 2px solid var(--border-color);

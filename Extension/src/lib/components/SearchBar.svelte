@@ -7,6 +7,12 @@
     inputEl?.focus();
   }
 
+  $effect(() => {
+    if (autofocus && inputEl) {
+      requestAnimationFrame(() => inputEl.focus());
+    }
+  });
+
   function handleClear() {
     value = '';
     oninput?.('');
@@ -19,15 +25,14 @@
   }
 </script>
 
-<div class="toolbar">
-  <div class="search-container">
+<div class="search-bar">
+  <div class="search-field">
     <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor">
       <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
     </svg>
     <input
       bind:this={inputEl}
       type="text"
-      class="search-input"
       {placeholder}
       {value}
       oninput={handleInput}
@@ -45,28 +50,34 @@
 </div>
 
 <style>
-  .toolbar {
-    display: flex;
-    align-items: center;
-    background: var(--bg-secondary);
+  .search-bar {
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--divider-color);
     flex-shrink: 0;
   }
-  .search-container {
-    flex: 1;
+  .search-field {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 7px 12px;
     background: var(--bg-secondary);
-    border-bottom: 1px solid var(--divider-color);
+    border-radius: 10px;
+    border: 1.5px solid transparent;
+    transition: all 0.15s ease;
+  }
+  .search-field:focus-within {
+    border-color: var(--accent-color);
+    background: var(--bg-primary);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
   }
   .search-icon {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
     color: var(--text-tertiary);
     flex-shrink: 0;
   }
-  .search-input {
+  input {
     flex: 1;
     border: none;
     background: transparent;
@@ -75,7 +86,7 @@
     outline: none;
     font-family: inherit;
   }
-  .search-input::placeholder {
+  input::placeholder {
     color: var(--text-tertiary);
   }
   .clear-btn {
@@ -86,14 +97,14 @@
     border: none;
     cursor: pointer;
     color: var(--text-tertiary);
-    border-radius: 6px;
+    border-radius: 50%;
     transition: color 0.15s ease;
   }
   .clear-btn:hover {
     color: var(--text-secondary);
   }
   .clear-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
   }
 </style>

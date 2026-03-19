@@ -41,7 +41,8 @@
     display: flex;
     align-items: center;
     justify-content: space-around;
-    padding: 6px 8px 10px;
+    gap: 4px;
+    padding: 6px 12px 10px;
     background: var(--bg-primary);
     border-top: 1px solid var(--divider-color);
     flex-shrink: 0;
@@ -50,8 +51,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
-    padding: 6px 12px;
+    gap: 3px;
+    padding: 6px 16px;
     background: none;
     border: none;
     border-radius: 10px;
@@ -59,21 +60,24 @@
     cursor: pointer;
     outline: none;
     transition: all 0.15s ease;
-    min-width: 60px;
+    min-width: 64px;
+    position: relative;
   }
   .nav-item:hover {
     color: var(--text-secondary);
-    background: var(--bg-hover);
+    background: var(--bg-secondary);
   }
   .nav-item.active {
     color: var(--accent-color);
+    background: var(--bg-selected);
   }
   .nav-icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
   .nav-label {
     font-size: 10px;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 0.2px;
   }
 </style>

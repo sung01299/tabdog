@@ -14,13 +14,13 @@
 </script>
 
 <div class="login-screen">
-  <div class="login-content">
-    <img src="../icons/icon128.png" alt="TabDog" class="login-logo">
-    <h1 class="login-title">TabDog</h1>
-    <p class="login-subtitle">Sync your tabs across all devices</p>
-    <button class="login-btn" onclick={handleSignIn} disabled={authStore.signingIn}>
+  <div class="login-card">
+    <img src="../icons/icon128.png" alt="TabDog" class="logo">
+    <h1 class="title">Tab Doggy</h1>
+    <p class="subtitle">Sync your tabs across all devices</p>
+    <button class="signin-btn" onclick={handleSignIn} disabled={authStore.signingIn}>
       {#if authStore.signingIn}
-        <div class="btn-spinner"></div>
+        <div class="spinner"></div>
         Signing in...
       {:else}
         <svg viewBox="0 0 24 24" width="18" height="18">
@@ -33,7 +33,13 @@
       {/if}
     </button>
     {#if error}
-      <p class="login-error">{error}</p>
+      <div class="error-msg">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+          <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+        </svg>
+        {error}
+      </div>
     {/if}
   </div>
 </div>
@@ -45,60 +51,78 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    padding: 40px 20px;
-    text-align: center;
+    padding: 40px 24px;
+    background: var(--bg-primary);
   }
-  .login-content {
+  .login-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    width: 100%;
+    max-width: 280px;
   }
-  .login-logo {
-    width: 80px;
-    height: 80px;
+  .logo {
+    width: 72px;
+    height: 72px;
     margin-bottom: 8px;
+    border-radius: 18px;
   }
-  .login-title {
-    font-size: 24px;
-    font-weight: 600;
+  .title {
+    font-size: 22px;
+    font-weight: 700;
     color: var(--text-primary);
     margin: 0;
+    letter-spacing: -0.3px;
   }
-  .login-subtitle {
+  .subtitle {
     font-size: 13px;
-    color: var(--text-secondary);
-    margin: 0 0 16px 0;
+    color: var(--text-tertiary);
+    margin: 0 0 20px 0;
   }
-  .login-btn {
+  .signin-btn {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
-    padding: 12px 24px;
+    width: 100%;
+    padding: 12px 20px;
     font-size: 14px;
     font-weight: 500;
     color: var(--text-primary);
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.15s ease;
     font-family: inherit;
   }
-  .login-btn:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--text-tertiary);
+  .signin-btn:hover {
+    background: var(--bg-primary);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
   }
-  .login-btn:disabled {
+  .signin-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-  .login-error {
-    margin-top: 8px;
+  .error-msg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px 12px;
     font-size: 12px;
     color: var(--danger-color);
+    background: rgba(255, 59, 48, 0.08);
+    border-radius: 8px;
   }
-  .btn-spinner {
+  .error-msg svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  .spinner {
     width: 14px;
     height: 14px;
     border: 2px solid var(--border-color);

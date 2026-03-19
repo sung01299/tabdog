@@ -71,6 +71,7 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
   }
   .scrollable-content::-webkit-scrollbar {
     width: 6px;

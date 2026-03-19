@@ -15,11 +15,9 @@
   import WorkspacesPage from './lib/pages/WorkspacesPage.svelte';
   import HistoryPage from './lib/pages/HistoryPage.svelte';
   import SaveWorkspaceModal from './lib/components/modals/SaveWorkspaceModal.svelte';
-  import ShareModal from './lib/components/modals/ShareModal.svelte';
-  import ShareLinkModal from './lib/components/modals/ShareLinkModal.svelte';
-  import RestoreWorkspaceModal from './lib/components/modals/RestoreWorkspaceModal.svelte';
 
   let searchQuery = $state('');
+  let selectedIndex = $state(-1);
 
   $effect(() => {
     themeStore.init();
@@ -35,19 +33,140 @@
     prevLoggedIn = authStore.isLoggedIn;
   });
 
+  $effect(() => {
+    navigationStore.currentPage;
+    selectedIndex = -1;
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  });
+
+  $effect(() => {
+    searchQuery;
+    selectedIndex = -1;
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  });
+
+  function getSelectableItems() {
+    const page = navigationStore.currentPage;
+    let selector = '';
+    if (page === 'tabs') {
+      selector = '.page .tab-item, .page .domain-header, .page .section-header, .page .item';
+    } else if (page === 'workspaces') {
+      selector = '.page .card-header, .page .tab-row';
+    } else if (page === 'history') {
+      selector = '.page .history-item';
+    }
+    if (!selector) return [];
+
+    const items = Array.from(document.querySelectorAll(selector));
+    return items.filter(el => {
+      if (el.closest('.domain-tabs') && !el.closest('.domain-group.expanded')) return false;
+      if (el.closest('.workspace-card .tab-list') && !el.closest('.workspace-card.expanded')) return false;
+      if (el.closest('.list') && !el.closest('.section.expanded')) return false;
+      return true;
+    });
+  }
+
+  function updateSelection(items) {
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    if (selectedIndex >= 0 && items[selectedIndex]) {
+      items[selectedIndex].classList.add('selected');
+      items[selectedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  function getSearchInput() {
+    return document.querySelector('.search-bar input') || document.querySelector('.search-field input');
+  }
+
   function handleKeydown(e) {
     if (modalStore.active) return;
 
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-      e.preventDefault();
-      if (navigationStore.currentPage !== 'tabs') navigationStore.switchTo('tabs');
-      const input = document.querySelector('.search-bar input');
-      input?.focus();
+    const items = getSelectableItems();
+    const searchInput = getSearchInput();
+
+    if (e.code === 'KeyC' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (selectedIndex >= 0 && document.activeElement !== searchInput) {
+        e.preventDefault();
+        const item = items[selectedIndex];
+        const closeBtn = item?.querySelector('.tab-close, .close-all-btn');
+        if (closeBtn) closeBtn.click();
+        return;
+      }
     }
 
-    if (e.key === '1' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); navigationStore.switchTo('tabs'); }
-    if (e.key === '2' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); navigationStore.switchTo('workspaces'); }
-    if (e.key === '3' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); navigationStore.switchTo('history'); }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (selectedIndex < items.length - 1) {
+          selectedIndex++;
+          updateSelection(items);
+          if (selectedIndex >= 0) searchInput?.blur();
+        } else if (selectedIndex === items.length - 1) {
+          selectedIndex = -1;
+          searchInput?.focus();
+          updateSelection(items);
+        }
+        break;
+
+      case 'ArrowUp':
+        e.preventDefault();
+        if (selectedIndex > 0) {
+          selectedIndex--;
+          updateSelection(items);
+        } else if (selectedIndex === 0) {
+          selectedIndex = -1;
+          searchInput?.focus();
+          updateSelection(items);
+        } else if (selectedIndex === -1 && items.length > 0) {
+          selectedIndex = items.length - 1;
+          searchInput?.blur();
+          updateSelection(items);
+        }
+        break;
+
+      case 'Enter':
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          e.preventDefault();
+          items[selectedIndex].click();
+        }
+        break;
+
+      case 'Escape':
+        e.preventDefault();
+        if (searchQuery) {
+          searchQuery = '';
+          selectedIndex = -1;
+          searchInput?.focus();
+          updateSelection(items);
+        } else {
+          window.close();
+        }
+        break;
+
+      case 'f':
+        if (e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          if (navigationStore.currentPage !== 'tabs') navigationStore.switchTo('tabs');
+          selectedIndex = -1;
+          updateSelection(items);
+          requestAnimationFrame(() => {
+            const input = getSearchInput();
+            input?.focus();
+            input?.select();
+          });
+        }
+        break;
+
+      case '1':
+        if (e.ctrlKey || e.metaKey) { e.preventDefault(); navigationStore.switchTo('tabs'); }
+        break;
+      case '2':
+        if (e.ctrlKey || e.metaKey) { e.preventDefault(); navigationStore.switchTo('workspaces'); }
+        break;
+      case '3':
+        if (e.ctrlKey || e.metaKey) { e.preventDefault(); navigationStore.switchTo('history'); }
+        break;
+    }
   }
 </script>
 
@@ -90,26 +209,6 @@
   />
 {/if}
 
-{#if modalStore.active === 'share'}
-  <ShareModal
-    onclose={() => modalStore.close()}
-    onlinkCreated={(url) => modalStore.open('shareLink', { url })}
-  />
-{/if}
-
-{#if modalStore.active === 'shareLink'}
-  <ShareLinkModal
-    url={modalStore.props.url}
-    onclose={() => modalStore.close()}
-  />
-{/if}
-
-{#if modalStore.active === 'restoreWorkspace'}
-  <RestoreWorkspaceModal
-    workspaceId={modalStore.props.workspaceId}
-    onclose={() => modalStore.close()}
-  />
-{/if}
 
 <style>
   .container {

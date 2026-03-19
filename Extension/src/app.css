@@ -89,3 +89,37 @@ html, body {
   width: 100%;
   height: 100%;
 }
+
+/* ============================================================================
+   KEYBOARD NAVIGATION — selected state (applied via JS classList)
+   ============================================================================ */
+
+.tab-item.selected,
+.domain-header.selected,
+.section-header.selected,
+.item.selected,
+.card-header.selected,
+.tab-row.selected,
+.history-item.selected {
+  background: var(--bg-selected) !important;
+  outline: none;
+}
+
+.tab-item.selected .tab-close {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.domain-header.selected .close-all-btn {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.item.selected .reopen-btn {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.card-header.selected .action-btn {
+  opacity: 1 !important;
+}
