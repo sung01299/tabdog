@@ -5,7 +5,7 @@
  */
 
 import { getCurrentUser, getIdToken } from './auth.js';
-import { firestoreSet, firestoreGet, firestoreDelete, firestoreList } from './firestore.js';
+import { firestoreSet, firestoreDelete, firestoreList } from './firestore.js';
 
 // ============================================================================
 // CONSTANTS
