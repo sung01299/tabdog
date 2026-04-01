@@ -6,6 +6,10 @@
 
 > Manage all your browser tabs in one place
 
+<a href="https://www.uneed.best/tool/tabdog" target="_blank">
+  <img src="https://www.uneed.best/POTD1.png" style="width: 250px;" alt="Uneed POTD1 Badge" />
+</a>
+
 **TabDog** is an open-source Chrome extension that helps you manage tabs efficiently. Search, group by domain, save workspaces, browse history, and sync across devices — all from a single popup.
 
 ## Features
