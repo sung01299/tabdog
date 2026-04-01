@@ -6,9 +6,12 @@
 
 > Manage all your browser tabs in one place
 
+
 <a href="https://www.uneed.best/tool/tabdog" target="_blank">
   <img src="https://www.uneed.best/POTD1.png" style="width: 250px;" alt="Uneed POTD1 Badge" />
 </a>
+
+<a href="https://www.producthunt.com/products/tabdog/launches/tabdog?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-tabdog" target="_blank" rel="noopener noreferrer"><img alt="TabDog - macOS menu bar app for managing browser tabs and apps | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1062308&amp;theme=light&amp;t=1775028690036"></a>
 
 **TabDog** is an open-source Chrome extension that helps you manage tabs efficiently. Search, group by domain, save workspaces, browse history, and sync across devices — all from a single popup.
 
