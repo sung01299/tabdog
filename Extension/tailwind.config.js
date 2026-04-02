@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./popup.html', './src/**/*.{svelte,js,ts}'],
+  content: ['./popup.html', './sidepanel.html', './src/**/*.{svelte,js,ts}'],
   darkMode: 'class',
   theme: {
     extend: {

@@ -18,6 +18,7 @@ function chromeExtensionPlugin() {
 
       const manifest = JSON.parse(readFileSync(resolve(__dirname, 'manifest.json'), 'utf-8'));
       manifest.action.default_popup = 'popup.html';
+      manifest.side_panel.default_path = 'sidepanel.html';
       writeFileSync(resolve(distDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
     },
   };
@@ -35,6 +36,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'popup.html'),
+        sidepanel: resolve(__dirname, 'sidepanel.html'),
       },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',

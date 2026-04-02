@@ -11,7 +11,13 @@
     "sessions",
     "identity",
     "alarms",
-    "history"
+    "history",
+    "sidePanel",
+    "scripting",
+    "activeTab"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
   ],
   "oauth2": {
     "client_id": "853701226968-qb8v1lf4g348lbfs9flbquthm5r988ej.apps.googleusercontent.com",
@@ -38,6 +44,9 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "commands": {
     "_execute_action": {
