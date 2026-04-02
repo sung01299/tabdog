@@ -1,11 +1,20 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { GEMINI_MODELS, streamTabChat } from '@services/gemini.js';
+  import { extractTabContentByFetch } from '../lib/chat-fetch-extractor.js';
+  import {
+    CHAT_LAUNCH_CONTEXT_KEY,
+    createChatSession,
+    getChatSessionTitle,
+    loadChatSessions,
+    saveChatSessions,
+  } from '../lib/utils.js';
 
   const CHAT_SETTINGS_KEY = 'tabdogChatSettings';
-  const CHAT_SESSIONS_KEY = 'tabdogChatSessions';
   const MAX_SELECTED_TABS = 2;
   const MAX_STORED_MESSAGES = 24;
+  const LAUNCH_CONTEXT_TTL_MS = 60 * 1000;
+  const DEBUG_PREFIX = '[TabDog Chat][SidePanel]';
 
   let darkMode = $state(false);
   let tabs = $state([]);
@@ -21,9 +30,8 @@
   let settingsSavedMessage = $state('');
   let isLoadingTabs = $state(true);
   let isSending = $state(false);
-  let activeConversationKey = $state('');
+  let activeSessionId = $state('');
   let messagesViewport = $state(null);
-  let currentHydrationKey = '';
   let abortController = null;
 
   const eligibleTabs = $derived.by(() =>
@@ -37,15 +45,6 @@
   const canSend = $derived.by(() =>
     Boolean(apiKey.trim() && inputValue.trim() && selectedTabs.length > 0 && !isSending),
   );
-
-  function createConversationKey(tabList) {
-    if (!tabList.length) return '';
-
-    return tabList
-      .map((tab) => `${tab.id}:${tab.url || ''}`)
-      .sort()
-      .join('|');
-  }
 
   function getOriginPattern(url) {
     const parsed = new URL(url);
@@ -95,6 +94,15 @@
     return parts.length ? `${parts.join(' · ')} tokens` : '';
   }
 
+  function logDebug(label, payload) {
+    if (payload === undefined) {
+      console.log(`${DEBUG_PREFIX} ${label}`);
+      return;
+    }
+
+    console.log(`${DEBUG_PREFIX} ${label}`, payload);
+  }
+
   function updateAssistantMessage(messageId, updater) {
     messages = messages.map((message) =>
       message.id === messageId
@@ -112,6 +120,78 @@
       top: messagesViewport.scrollHeight,
       behavior: 'smooth',
     });
+  }
+
+  function resetConversationState() {
+    activeSessionId = '';
+    messages = [];
+    tabSummaries = [];
+    usageMessage = '';
+  }
+
+  function buildSessionTabRefs(tabList = selectedTabs, summaries = tabSummaries) {
+    if (tabList.length) {
+      return tabList.slice(0, MAX_SELECTED_TABS).map((tab) => ({
+        tabId: tab.id,
+        url: tab.url || '',
+        title: tab.title || 'Untitled tab',
+      }));
+    }
+
+    return (summaries || []).map((summary) => ({
+      tabId: summary?.tabId,
+      url: summary?.url || '',
+      title: summary?.title || 'Untitled tab',
+    }));
+  }
+
+  function isFreshLaunchContext(context) {
+    return Boolean(
+      context &&
+      typeof context.tabId === 'number' &&
+      Date.now() - (context.createdAt || 0) < LAUNCH_CONTEXT_TTL_MS,
+    );
+  }
+
+  function findTabSelectionForSession(tabList, session) {
+    const refs = Array.isArray(session?.tabRefs) && session.tabRefs.length
+      ? session.tabRefs
+      : (session?.tabSummaries || []).map((summary) => ({
+          tabId: summary?.tabId,
+          url: summary?.url || '',
+        }));
+
+    const used = new Set();
+    const matches = [];
+
+    for (const ref of refs) {
+      let match = null;
+
+      if (typeof ref.tabId === 'number') {
+        match = tabList.find((tab) =>
+          !used.has(tab.id) &&
+          tab.id === ref.tabId &&
+          (!ref.url || tab.url === ref.url),
+        );
+      }
+
+      if (!match && ref.url) {
+        match = tabList.find((tab) => !used.has(tab.id) && tab.url === ref.url);
+      }
+
+      if (!match || !match.isSupported) {
+        continue;
+      }
+
+      used.add(match.id);
+      matches.push(match.id);
+
+      if (matches.length >= MAX_SELECTED_TABS) {
+        break;
+      }
+    }
+
+    return matches;
   }
 
   async function loadSettings() {
@@ -135,7 +215,50 @@
     }, 1800);
   }
 
-  async function loadTabs({ keepSelection = true } = {}) {
+  async function loadSession(sessionId) {
+    const sessions = await loadChatSessions();
+    const session = sessions[sessionId];
+
+    if (!session) {
+      logDebug('Requested session was not found', { sessionId });
+      return null;
+    }
+
+    logDebug('Loaded session', session);
+    activeSessionId = session.id;
+    messages = session.messages || [];
+    tabSummaries = session.tabSummaries || [];
+    usageMessage = session.usageMessage || '';
+    await scrollMessagesToBottom();
+    return session;
+  }
+
+  async function persistConversation(sessionId = activeSessionId) {
+    if (!sessionId) return;
+
+    const sessions = await loadChatSessions();
+    const existing = sessions[sessionId];
+    const createdAt = existing?.createdAt || Date.now();
+
+    const nextSession = {
+      ...(existing || {}),
+      id: sessionId,
+      createdAt,
+      updatedAt: Date.now(),
+      messages: pruneMessages(messages),
+      tabSummaries,
+      tabRefs: buildSessionTabRefs(),
+      usageMessage,
+    };
+
+    nextSession.title = getChatSessionTitle(nextSession);
+    sessions[sessionId] = nextSession;
+    logDebug('Persisting conversation', nextSession);
+    await saveChatSessions(sessions);
+    activeSessionId = sessionId;
+  }
+
+  async function loadTabs({ keepSelection = true, launchContext = null, launchSession = null } = {}) {
     isLoadingTabs = true;
 
     try {
@@ -157,6 +280,34 @@
         });
 
       tabs = nextTabs;
+      logDebug('Loaded tabs for sidepanel', nextTabs);
+
+      if (isFreshLaunchContext(launchContext)) {
+        logDebug('Applying launch context during tab load', {
+          launchContext,
+          launchSession,
+        });
+        if (launchContext.mode === 'conversation' && launchSession) {
+          const matchedIds = findTabSelectionForSession(nextTabs, launchSession);
+          selectedTabIds = matchedIds;
+
+          if (!matchedIds.length && (launchSession.tabRefs?.length || launchSession.tabSummaries?.length)) {
+            statusMessage = 'Saved conversation opened. Select an open tab to continue chatting.';
+          } else {
+            statusMessage = '';
+          }
+
+          return;
+        }
+
+        const launchTab = nextTabs.find((tab) => tab.id === launchContext.tabId && tab.isSupported);
+        if (launchTab) {
+          selectedTabIds = [launchTab.id];
+        } else {
+          selectedTabIds = [];
+        }
+        return;
+      }
 
       if (keepSelection) {
         const validIds = new Set(nextTabs.map((tab) => tab.id));
@@ -176,47 +327,43 @@
     }
   }
 
-  async function hydrateConversation(conversationKey) {
-    currentHydrationKey = conversationKey;
-
-    if (!conversationKey) {
-      activeConversationKey = '';
-      messages = [];
-      tabSummaries = [];
-      usageMessage = '';
-      return;
+  async function handleLaunchContext(launchContext) {
+    if (!isFreshLaunchContext(launchContext)) {
+      logDebug('Ignoring stale or invalid launch context', launchContext);
+      return false;
     }
 
-    const result = await chrome.storage.local.get(CHAT_SESSIONS_KEY);
-    const sessions = result[CHAT_SESSIONS_KEY] || {};
-    const session = sessions[conversationKey];
+    logDebug('Handling launch context', launchContext);
 
-    if (currentHydrationKey !== conversationKey) {
-      return;
+    abortController?.abort();
+    abortController = null;
+    isSending = false;
+    errorMessage = '';
+    settingsSavedMessage = '';
+    statusMessage = '';
+
+    let launchSession = null;
+
+    if (launchContext.mode === 'conversation' && launchContext.sessionId) {
+      launchSession = await loadSession(launchContext.sessionId);
+
+      if (!launchSession) {
+        resetConversationState();
+        errorMessage = 'This conversation is no longer available.';
+        logDebug('Launch session missing', { sessionId: launchContext.sessionId });
+      }
+    } else {
+      resetConversationState();
     }
 
-    activeConversationKey = conversationKey;
-    messages = session?.messages || [];
-    tabSummaries = session?.tabSummaries || [];
-    usageMessage = session?.usageMessage || '';
-    await scrollMessagesToBottom();
-  }
-
-  async function persistConversation() {
-    if (!activeConversationKey) return;
-
-    const result = await chrome.storage.local.get(CHAT_SESSIONS_KEY);
-    const sessions = result[CHAT_SESSIONS_KEY] || {};
-    sessions[activeConversationKey] = {
-      messages: pruneMessages(messages),
-      tabSummaries,
-      usageMessage,
-      updatedAt: Date.now(),
-    };
-
-    await chrome.storage.local.set({
-      [CHAT_SESSIONS_KEY]: sessions,
+    await loadTabs({
+      keepSelection: false,
+      launchContext,
+      launchSession,
     });
+
+    await chrome.storage.local.remove(CHAT_LAUNCH_CONTEXT_KEY);
+    return true;
   }
 
   async function ensureTabAccess(tab) {
@@ -238,10 +385,25 @@
     const contexts = [];
 
     for (const tab of tabList) {
+      logDebug('Preparing tab extraction', tab);
       statusMessage = `Requesting access to ${tab.title}...`;
       const granted = await ensureTabAccess(tab);
       if (!granted) {
         throw new Error(`Site access was denied for ${tab.hostname || tab.title}.`);
+      }
+
+      try {
+        statusMessage = `Fetching ${tab.title}...`;
+        const fetchResult = await extractTabContentByFetch(tab);
+        logDebug('Fetch extraction success', fetchResult);
+        contexts.push(fetchResult);
+        continue;
+      } catch (fetchError) {
+        logDebug('Fetch extraction failed, falling back to background injection', {
+          tab,
+          error: fetchError,
+          message: fetchError?.message,
+        });
       }
 
       statusMessage = `Reading ${tab.title}...`;
@@ -251,9 +413,11 @@
       });
 
       if (!result?.ok) {
+        logDebug('Tab extraction failed', { tab, result });
         throw new Error(result?.message || `Failed to read ${tab.title}.`);
       }
 
+      logDebug('Tab extraction success', result);
       contexts.push(result);
     }
 
@@ -262,6 +426,7 @@
 
   function toggleTabSelection(tabId) {
     errorMessage = '';
+    statusMessage = '';
 
     if (selectedTabIds.includes(tabId)) {
       selectedTabIds = selectedTabIds.filter((id) => id !== tabId);
@@ -292,15 +457,19 @@
     settingsSavedMessage = '';
     statusMessage = 'Preparing your selected tabs...';
 
-    const conversationKey = createConversationKey(selectedTabs);
-    if (conversationKey && conversationKey !== activeConversationKey) {
-      await hydrateConversation(conversationKey);
-    }
-
     await saveSettings();
+
+    const sessionId = activeSessionId || createChatSession({ selectedTabs }).id;
+    activeSessionId = sessionId;
 
     const userMessage = createMessage('user', inputValue.trim());
     const assistantMessage = createMessage('assistant', '');
+    logDebug('Submitting message', {
+      sessionId,
+      question: userMessage.content,
+      selectedTabs,
+      model,
+    });
     inputValue = '';
     messages = [...messages, userMessage, assistantMessage];
     await scrollMessagesToBottom();
@@ -310,6 +479,8 @@
     abortController = new AbortController();
 
     try {
+      await persistConversation(sessionId);
+
       const contexts = await extractSelectedTabContexts(selectedTabs);
       tabSummaries = contexts.map((context) => ({
         tabId: context.tabId,
@@ -319,9 +490,11 @@
         truncated: context.truncated,
         charCount: context.charCount,
       }));
+      logDebug('Built tab summaries for prompt', tabSummaries);
+      logDebug('Full extracted contexts for prompt', contexts);
 
       statusMessage = 'Streaming answer from Gemini...';
-      await persistConversation();
+      await persistConversation(sessionId);
 
       const response = await streamTabChat({
         apiKey,
@@ -330,15 +503,23 @@
         tabContexts: contexts,
         signal: abortController.signal,
         onChunk: async (chunk) => {
+          logDebug('Received Gemini chunk', chunk);
           updateAssistantMessage(assistantMessage.id, (content) => `${content}${chunk}`);
           await scrollMessagesToBottom();
         },
       });
 
+      logDebug('Gemini response complete', response);
       usageMessage = formatUsage(response.usageMetadata);
       statusMessage = '';
-      await persistConversation();
+      await persistConversation(sessionId);
     } catch (error) {
+      logDebug('Submit message failed', {
+        error,
+        message: error?.message,
+        selectedTabs,
+        activeSessionId: sessionId,
+      });
       const isAbort = error?.name === 'AbortError';
       if (!isAbort) {
         errorMessage = error?.message || 'Something went wrong while generating a response.';
@@ -349,37 +530,32 @@
         messages = messages.filter((message) => message.id !== assistantMessage.id);
       }
 
-      if (isAbort) {
-        statusMessage = 'Response stopped.';
-      } else {
-        statusMessage = '';
-      }
-
-      await persistConversation();
+      statusMessage = isAbort ? 'Response stopped.' : '';
+      await persistConversation(sessionId);
     } finally {
       isSending = false;
       abortController = null;
     }
   }
 
-  $effect(() => {
-    const conversationKey = createConversationKey(selectedTabs);
-    if (conversationKey === activeConversationKey) {
-      return;
-    }
-
-    hydrateConversation(conversationKey);
-  });
-
   onMount(() => {
-    const handleStorageChanged = (changes) => {
+    const handleStorageChanged = (changes, areaName) => {
+      if (areaName !== 'local') {
+        return;
+      }
+
       if (changes.theme) {
         darkMode = changes.theme.newValue === 'dark';
         document.documentElement.classList.toggle('dark-mode', darkMode);
       }
+
+      if (changes[CHAT_LAUNCH_CONTEXT_KEY]?.newValue) {
+        handleLaunchContext(changes[CHAT_LAUNCH_CONTEXT_KEY].newValue);
+      }
     };
 
     const refreshTabs = () => {
+      logDebug('Refreshing tab list because Chrome tab state changed');
       loadTabs();
     };
 
@@ -393,9 +569,26 @@
       const themeResult = await chrome.storage.local.get('theme');
       darkMode = themeResult.theme === 'dark';
       document.documentElement.classList.toggle('dark-mode', darkMode);
+      logDebug('Sidepanel mounted', {
+        darkMode,
+        themeResult,
+      });
 
       await loadSettings();
-      await loadTabs();
+      logDebug('Loaded chat settings', {
+        model,
+        hasApiKey: Boolean(apiKey),
+        apiKeyLength: apiKey?.length || 0,
+      });
+
+      const launchResult = await chrome.storage.local.get(CHAT_LAUNCH_CONTEXT_KEY);
+      const launchContext = launchResult[CHAT_LAUNCH_CONTEXT_KEY];
+      const handledLaunch = launchContext ? await handleLaunchContext(launchContext) : false;
+
+      if (!handledLaunch) {
+        resetConversationState();
+        await loadTabs();
+      }
     })();
 
     return () => {

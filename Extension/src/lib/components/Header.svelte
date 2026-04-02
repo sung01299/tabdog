@@ -91,7 +91,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
     height: 32px;
     background: none;
     border: none;
@@ -99,6 +98,9 @@
     color: var(--text-tertiary);
     cursor: pointer;
     transition: all 0.15s ease;
+  }
+  .icon-btn {
+    width: 32px;
   }
   .icon-btn:hover {
     background: var(--bg-secondary);

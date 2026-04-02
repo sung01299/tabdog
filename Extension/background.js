@@ -246,13 +246,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'extractTabContent') {
     const { tabId } = message;
+    console.log('[TabDog Chat][Background] extractTabContent message received', {
+      tabId,
+      sender: {
+        documentId: sender?.documentId,
+        url: sender?.url,
+        origin: sender?.origin,
+      },
+    });
 
     extractTabContent(tabId)
       .then((result) => {
+        console.log('[TabDog Chat][Background] extractTabContent result', result);
         sendResponse(result);
       })
       .catch((error) => {
-        console.error('[TabDog] Failed to extract tab content:', error);
+        console.error('[TabDog Chat][Background] Failed to extract tab content:', error);
         sendResponse({
           ok: false,
           error: 'unexpected_error',

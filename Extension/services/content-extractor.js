@@ -1,6 +1,7 @@
-const EXTRACTOR_BUNDLE_PATH = 'content-scripts/extractContent.js';
 const MAX_CONTENT_CHARS = 24000;
 const MIN_CONTENT_CHARS = 120;
+const EXTRACTOR_STEP_TIMEOUT_MS = 15000;
+const EXTRACTOR_DEBUG_PREFIX = '[TabDog Chat][Extractor]';
 
 const UNSUPPORTED_PROTOCOLS = [
   'chrome:',
@@ -21,6 +22,26 @@ function createError(error, message, extra = {}) {
     message,
     ...extra,
   };
+}
+
+function logExtractor(label, payload) {
+  if (payload === undefined) {
+    console.log(`${EXTRACTOR_DEBUG_PREFIX} ${label}`);
+    return;
+  }
+
+  console.log(`${EXTRACTOR_DEBUG_PREFIX} ${label}`, payload);
+}
+
+function withTimeout(promise, label, timeoutMs = EXTRACTOR_STEP_TIMEOUT_MS) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }),
+  ]);
 }
 
 function isSupportedTabUrl(url) {
@@ -98,25 +119,73 @@ function mapInjectionError(error, tab) {
   );
 }
 
-async function injectExtractor(tabId) {
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: [EXTRACTOR_BUNDLE_PATH],
-  });
-}
-
-async function runExtractor(tabId) {
+async function runInlineFallbackExtractor(tabId) {
   const [result] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
-      if (typeof globalThis.__TABDOG_EXTRACT_PAGE__ !== 'function') {
+      const MAX_FALLBACK_CHARS = 24000;
+      const selectors = [
+        'article',
+        'main',
+        '[role="main"]',
+        '#main',
+        '#content',
+        '.main',
+        '.content',
+        '.post-content',
+        '.entry-content',
+        '.article-content',
+      ];
+
+      function normalizeWhitespace(text) {
+        return (text || '')
+          .replace(/\u00a0/g, ' ')
+          .replace(/[ \t]+\n/g, '\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .replace(/[ \t]{2,}/g, ' ')
+          .trim();
+      }
+
+      function buildExcerpt(source) {
+        const excerpt = normalizeWhitespace(source);
+        if (excerpt.length <= 280) {
+          return excerpt;
+        }
+        return `${excerpt.slice(0, 280).trim()}...`;
+      }
+
+      function getFallbackRoot() {
+        for (const selector of selectors) {
+          const element = document.querySelector(selector);
+          if (element) {
+            return element;
+          }
+        }
+        return document.body;
+      }
+
+      const root = getFallbackRoot();
+      const content = normalizeWhitespace(root?.innerText || root?.textContent || '');
+      const truncatedContent = content.length > MAX_FALLBACK_CHARS
+        ? content.slice(0, MAX_FALLBACK_CHARS)
+        : content;
+
+      if (!truncatedContent) {
         return {
-          error: 'extractor_unavailable',
-          message: 'Extractor bundle is not available in the page context.',
+          error: 'empty_content',
+          message: 'No readable content was found in the fallback extractor.',
         };
       }
 
-      return globalThis.__TABDOG_EXTRACT_PAGE__();
+      return {
+        title: normalizeWhitespace(document.title || ''),
+        url: location.href,
+        siteName: normalizeWhitespace(location.hostname || ''),
+        excerpt: buildExcerpt(truncatedContent),
+        content: truncatedContent,
+        strategy: root === document.body ? 'inline-innerText' : 'inline-semantic-fallback',
+        charCount: content.length,
+      };
     },
   });
 
@@ -124,6 +193,8 @@ async function runExtractor(tabId) {
 }
 
 export async function extractTabContent(tabId) {
+  logExtractor('extractTabContent called', { tabId });
+
   if (!Number.isInteger(tabId)) {
     return createError('invalid_tab', 'A valid tab id is required.');
   }
@@ -132,6 +203,11 @@ export async function extractTabContent(tabId) {
 
   try {
     tab = await chrome.tabs.get(tabId);
+    logExtractor('Resolved tab', {
+      tabId,
+      title: tab.title,
+      url: tab.url,
+    });
   } catch {
     return createError('tab_not_found', 'The selected tab is no longer available.', { tabId });
   }
@@ -145,22 +221,21 @@ export async function extractTabContent(tabId) {
   }
 
   try {
-    await injectExtractor(tabId);
-    const extraction = await runExtractor(tabId);
+    logExtractor('Running inline extractor directly', { tabId });
+    const extraction = await withTimeout(
+      runInlineFallbackExtractor(tabId),
+      'runInlineFallbackExtractor',
+    );
+    logExtractor('Inline extractor raw result', extraction);
 
-    if (!extraction) {
-      return createError('empty_content', 'No readable content was returned from the page.', {
-        tabId,
-        url: tab.url || '',
-      });
-    }
-
-    if (extraction.error) {
-      return createError(
-        extraction.error,
-        extraction.message || 'The extractor failed while reading the page.',
+    if (!extraction || extraction.error) {
+      const extractorError = createError(
+        extraction?.error || 'empty_content',
+        extraction?.message || 'Inline extractor returned no content.',
         { tabId, url: tab.url || '' },
       );
+      logExtractor('Inline extractor failed', extractorError);
+      return extractorError;
     }
 
     const rawContent = typeof extraction.content === 'string' ? extraction.content.trim() : '';
@@ -174,8 +249,7 @@ export async function extractTabContent(tabId) {
     }
 
     const truncated = truncateContent(rawContent);
-
-    return {
+    const successResult = {
       ok: true,
       tabId,
       title: extraction.title || tab.title || 'Untitled Tab',
@@ -189,7 +263,15 @@ export async function extractTabContent(tabId) {
       truncatedCharCount: truncated.content.length,
       extractedAt: Date.now(),
     };
+
+    logExtractor('Normalized extraction result', successResult);
+    return successResult;
   } catch (error) {
-    return mapInjectionError(error, tab);
+    const mappedError = mapInjectionError(error, tab);
+    logExtractor('Extraction threw error', {
+      error,
+      mappedError,
+    });
+    return mappedError;
   }
 }

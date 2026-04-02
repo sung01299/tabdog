@@ -1,6 +1,9 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MAX_OUTPUT_TOKENS = 1024;
 const MAX_HISTORY_MESSAGES = 12;
+const SSE_EVENT_SEPARATOR = /\r?\n\r?\n/;
+const STREAM_START_TIMEOUT_MS = 12000;
+const GEMINI_DEBUG_PREFIX = '[TabDog Chat][Gemini]';
 
 const SYSTEM_PROMPT = `
 You are TabDog Chat, an assistant that answers questions about the user's selected browser tabs.
@@ -95,9 +98,55 @@ async function parseErrorResponse(response) {
   }
 }
 
+function buildRequestBody(messages, tabContexts) {
+  return {
+    systemInstruction: {
+      parts: [{ text: SYSTEM_PROMPT }],
+    },
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+    },
+    contents: createGeminiContents(messages, tabContexts),
+  };
+}
+
+function logGeminiDebug(label, payload) {
+  if (payload === undefined) {
+    console.log(`${GEMINI_DEBUG_PREFIX} ${label}`);
+    return;
+  }
+
+  console.log(`${GEMINI_DEBUG_PREFIX} ${label}`, payload);
+}
+
+function extractResponseText(payload) {
+  return extractChunkText(payload).trim();
+}
+
+function linkAbortSignal(sourceSignal, targetController) {
+  if (!sourceSignal) {
+    return () => {};
+  }
+
+  if (sourceSignal.aborted) {
+    targetController.abort(sourceSignal.reason);
+    return () => {};
+  }
+
+  const handleAbort = () => {
+    targetController.abort(sourceSignal.reason);
+  };
+
+  sourceSignal.addEventListener('abort', handleAbort, { once: true });
+  return () => {
+    sourceSignal.removeEventListener('abort', handleAbort);
+  };
+}
+
 function parseSseEvent(rawEvent) {
   const dataLines = rawEvent
-    .split('\n')
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith('data:'))
     .map((line) => line.slice(5).trim());
@@ -111,7 +160,90 @@ function parseSseEvent(rawEvent) {
     return null;
   }
 
-  return JSON.parse(payload);
+  try {
+    return JSON.parse(payload);
+  } catch (error) {
+    throw new Error('Failed to parse the Gemini streaming response.');
+  }
+}
+
+function applySseEvent(rawEvent, state, onChunk) {
+  const payload = parseSseEvent(rawEvent);
+  if (!payload) {
+    return;
+  }
+
+  state.usageMetadata = payload.usageMetadata || state.usageMetadata;
+  const chunkText = extractChunkText(payload);
+  if (!chunkText) {
+    return;
+  }
+
+  let delta = chunkText;
+  if (chunkText.startsWith(state.fullText)) {
+    delta = chunkText.slice(state.fullText.length);
+  }
+
+  if (!delta) {
+    return;
+  }
+
+  state.receivedChunk = true;
+  state.fullText += delta;
+  onChunk?.(delta, payload);
+}
+
+async function generateTabChat({
+  apiKey,
+  model,
+  messages,
+  tabContexts,
+  signal,
+}) {
+  const endpoint = `${GEMINI_API_BASE}/models/${model}:generateContent`;
+  const requestBody = buildRequestBody(messages, tabContexts);
+
+  logGeminiDebug('Fallback request start', {
+    endpoint,
+    model,
+    requestBody,
+    apiKey: '[REDACTED]',
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey.trim(),
+    },
+    signal,
+    body: JSON.stringify(requestBody),
+  });
+
+  logGeminiDebug('Fallback response status', {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseErrorResponse(response));
+  }
+
+  const payload = await response.json();
+  const text = extractResponseText(payload);
+
+  logGeminiDebug('Fallback response payload', payload);
+  logGeminiDebug('Fallback extracted text', text);
+
+  if (!text) {
+    throw new Error('Gemini returned an empty response.');
+  }
+
+  return {
+    text,
+    usageMetadata: payload?.usageMetadata || null,
+  };
 }
 
 export async function streamTabChat({
@@ -126,91 +258,139 @@ export async function streamTabChat({
     throw new Error('A Gemini API key is required.');
   }
 
-  const endpoint = `${GEMINI_API_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey.trim())}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    signal,
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
+  const endpoint = `${GEMINI_API_BASE}/models/${model}:streamGenerateContent?alt=sse`;
+  const requestBody = buildRequestBody(messages, tabContexts);
+  const streamController = new AbortController();
+  const unlinkAbort = linkAbortSignal(signal, streamController);
+
+  let streamTimedOut = false;
+  let receivedChunk = false;
+  const startupTimer = setTimeout(() => {
+    streamTimedOut = true;
+    streamController.abort(new DOMException('Streaming startup timeout', 'AbortError'));
+  }, STREAM_START_TIMEOUT_MS);
+
+  try {
+    logGeminiDebug('Streaming request start', {
+      endpoint,
+      model,
+      requestBody,
+      apiKey: '[REDACTED]',
+    });
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey.trim(),
       },
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
-      },
-      contents: createGeminiContents(messages, tabContexts),
-    }),
-  });
+      signal: streamController.signal,
+      body: JSON.stringify(requestBody),
+    });
 
-  if (!response.ok) {
-    throw new Error(await parseErrorResponse(response));
-  }
+    logGeminiDebug('Streaming response status', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+    });
 
-  if (!response.body) {
-    throw new Error('Gemini returned an empty streaming response.');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let fullText = '';
-  let usageMetadata = null;
-
-  while (true) {
-    const { value, done } = await reader.read();
-
-    if (done) {
-      break;
+    if (!response.ok) {
+      throw new Error(await parseErrorResponse(response));
     }
 
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split('\n\n');
-    buffer = events.pop() || '';
+    if (!response.body) {
+      throw new Error('Gemini returned an empty streaming response.');
+    }
 
-    for (const event of events) {
-      const payload = parseSseEvent(event);
-      if (!payload) continue;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const streamState = {
+      fullText: '',
+      usageMetadata: null,
+      receivedChunk: false,
+    };
 
-      usageMetadata = payload.usageMetadata || usageMetadata;
-      const chunkText = extractChunkText(payload);
-      if (!chunkText) continue;
+    while (true) {
+      const { value, done } = await reader.read();
 
-      let delta = chunkText;
-      if (chunkText.startsWith(fullText)) {
-        delta = chunkText.slice(fullText.length);
+      if (done) {
+        break;
       }
 
-      if (!delta) continue;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split(SSE_EVENT_SEPARATOR);
+      buffer = events.pop() || '';
 
-      fullText += delta;
-      onChunk?.(delta, payload);
-    }
-  }
+      for (const event of events) {
+        logGeminiDebug('Streaming raw event', event);
+        applySseEvent(event, streamState, onChunk);
+      }
 
-  if (buffer.trim()) {
-    const payload = parseSseEvent(buffer.trim());
-    if (payload) {
-      usageMetadata = payload.usageMetadata || usageMetadata;
-      const chunkText = extractChunkText(payload);
-      if (chunkText) {
-        let delta = chunkText;
-        if (chunkText.startsWith(fullText)) {
-          delta = chunkText.slice(fullText.length);
-        }
-
-        if (delta) {
-          fullText += delta;
-          onChunk?.(delta, payload);
-        }
+      if (streamState.receivedChunk) {
+        receivedChunk = true;
+        clearTimeout(startupTimer);
       }
     }
-  }
 
-  return {
-    text: fullText.trim(),
-    usageMetadata,
-  };
+    if (buffer.trim()) {
+      logGeminiDebug('Streaming trailing event', buffer.trim());
+      applySseEvent(buffer.trim(), streamState, onChunk);
+      if (streamState.receivedChunk) {
+        receivedChunk = true;
+      }
+    }
+
+    if (!streamState.fullText.trim()) {
+      throw new Error('Gemini returned an empty response.');
+    }
+
+    logGeminiDebug('Streaming final text', streamState.fullText);
+    logGeminiDebug('Streaming usage metadata', streamState.usageMetadata);
+
+    return {
+      text: streamState.fullText.trim(),
+      usageMetadata: streamState.usageMetadata,
+    };
+  } catch (error) {
+    logGeminiDebug('Streaming request failed', {
+      error,
+      message: error?.message,
+      streamTimedOut,
+      receivedChunk,
+      signalAborted: Boolean(signal?.aborted),
+    });
+    clearTimeout(startupTimer);
+    unlinkAbort();
+
+    if (signal?.aborted && !streamTimedOut) {
+      throw error;
+    }
+
+    if (receivedChunk && !streamTimedOut) {
+      throw error;
+    }
+
+    logGeminiDebug('Switching to fallback generateContent', {
+      reason: streamTimedOut ? 'stream_start_timeout' : 'stream_request_failed_before_first_chunk',
+    });
+
+    const fallback = await generateTabChat({
+      apiKey,
+      model,
+      messages,
+      tabContexts,
+      signal,
+    });
+
+    onChunk?.(fallback.text, {
+      usageMetadata: fallback.usageMetadata,
+      fallback: 'generateContent',
+    });
+
+    return fallback;
+  } finally {
+    clearTimeout(startupTimer);
+    unlinkAbort();
+  }
 }

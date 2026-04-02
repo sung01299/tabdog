@@ -1,7 +1,9 @@
 <script>
   import { authStore } from '../stores/auth.svelte.js';
+  import { openChatSidePanel } from '../utils.js';
 
   let error = $state('');
+  let chatError = $state('');
 
   async function handleSignIn() {
     error = '';
@@ -9,6 +11,15 @@
       await authStore.signIn();
     } catch (e) {
       error = 'Sign in failed. Please try again.';
+    }
+  }
+
+  async function handleOpenChat() {
+    chatError = '';
+    try {
+      await openChatSidePanel();
+    } catch (e) {
+      chatError = e?.message || 'Failed to open TabDog Chat.';
     }
   }
 </script>
@@ -32,6 +43,9 @@
         Sign in with Google
       {/if}
     </button>
+    <button class="chat-btn" onclick={handleOpenChat}>
+      Open TabDog Chat
+    </button>
     {#if error}
       <div class="error-msg">
         <svg viewBox="0 0 16 16" fill="currentColor">
@@ -39,6 +53,15 @@
           <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
         </svg>
         {error}
+      </div>
+    {/if}
+    {#if chatError}
+      <div class="error-msg">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+          <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+        </svg>
+        {chatError}
       </div>
     {/if}
   </div>
@@ -97,10 +120,27 @@
     transition: all 0.15s ease;
     font-family: inherit;
   }
+  .chat-btn {
+    width: 100%;
+    padding: 11px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-color);
+    background: var(--bg-primary);
+    border: 1px solid var(--accent-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
   .signin-btn:hover {
     background: var(--bg-primary);
     border-color: var(--accent-color);
     box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+  }
+  .chat-btn:hover {
+    background: var(--bg-selected);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.08);
   }
   .signin-btn:disabled {
     opacity: 0.6;

@@ -13,6 +13,7 @@
   import BottomNav from './lib/components/BottomNav.svelte';
   import TabsPage from './lib/pages/TabsPage.svelte';
   import WorkspacesPage from './lib/pages/WorkspacesPage.svelte';
+  import ConversationsPage from './lib/pages/ConversationsPage.svelte';
   import HistoryPage from './lib/pages/HistoryPage.svelte';
   import SaveWorkspaceModal from './lib/components/modals/SaveWorkspaceModal.svelte';
 
@@ -52,6 +53,8 @@
       selector = '.page .tab-item, .page .domain-header, .page .section-header, .page .item';
     } else if (page === 'workspaces') {
       selector = '.page .card-header, .page .tab-row';
+    } else if (page === 'conversations') {
+      selector = '.page .conversation-item, .page .start-chat-btn';
     } else if (page === 'history') {
       selector = '.page .history-item';
     }
@@ -164,6 +167,9 @@
         if (e.ctrlKey || e.metaKey) { e.preventDefault(); navigationStore.switchTo('workspaces'); }
         break;
       case '3':
+        if (e.ctrlKey || e.metaKey) { e.preventDefault(); navigationStore.switchTo('conversations'); }
+        break;
+      case '4':
         if (e.ctrlKey || e.metaKey) { e.preventDefault(); navigationStore.switchTo('history'); }
         break;
     }
@@ -190,6 +196,8 @@
               <TabsPage {searchQuery} />
             {:else if navigationStore.currentPage === 'workspaces'}
               <WorkspacesPage />
+            {:else if navigationStore.currentPage === 'conversations'}
+              <ConversationsPage />
             {:else if navigationStore.currentPage === 'history'}
               <HistoryPage />
             {/if}
