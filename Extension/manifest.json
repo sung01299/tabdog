@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TabDog",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxROvaqUSMAnWvNjfMVw0rvpQmc3dY4L/V9NwdUHZ+Qu2Yl4OY1QLSdBTJaEUfAhiW7gX1gp7kh9n3JQQuIX3StAQcQgQ0l7U2f1RQTPlO2Ik+jsyfv+ZwPAvuN4UuG4eLJgktcAvC9SktrCf1tDtcLIUOTwpDjqel5/5liidZBF7pORIm3weEGEBFP+tG/uuv0v45/+y57bSTk8B1SrTRtQhQJzkOxppFDbN0auDXMuYsZhnG1N3J3u016JIXND/rLAFtbm3g0PJo3QLmjqqjtlfoaD3PZBycXRIbQ9b18tHvqdxvhSA9cCVjwq5lTQWhdu1EcfKdDel/VR3YJ97jwIDAQAB",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Manage all your browser tabs in one place - search, group by domain, save workspaces, and quickly switch between tabs",
   "permissions": [
     "tabs",
