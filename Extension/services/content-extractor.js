@@ -1,4 +1,3 @@
-const MAX_CONTENT_CHARS = 24000;
 const MIN_CONTENT_CHARS = 120;
 const EXTRACTOR_STEP_TIMEOUT_MS = 15000;
 const EXTRACTOR_DEBUG_PREFIX = '[TabDog Chat][Extractor]';
@@ -54,37 +53,6 @@ function isSupportedTabUrl(url) {
   return /^https?:\/\//.test(url);
 }
 
-function truncateContent(content, maxChars = MAX_CONTENT_CHARS) {
-  if (content.length <= maxChars) {
-    return {
-      content,
-      truncated: false,
-      originalCharCount: content.length,
-    };
-  }
-
-  const paragraphs = content.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
-  let result = '';
-
-  for (const paragraph of paragraphs) {
-    const candidate = result ? `${result}\n\n${paragraph}` : paragraph;
-    if (candidate.length > maxChars) {
-      break;
-    }
-    result = candidate;
-  }
-
-  if (!result) {
-    result = content.slice(0, maxChars);
-  }
-
-  return {
-    content: result.trim(),
-    truncated: true,
-    originalCharCount: content.length,
-  };
-}
-
 function mapInjectionError(error, tab) {
   const message = error?.message || String(error);
 
@@ -123,7 +91,6 @@ async function runInlineFallbackExtractor(tabId) {
   const [result] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
-      const MAX_FALLBACK_CHARS = 24000;
       const selectors = [
         'article',
         'main',
@@ -166,11 +133,7 @@ async function runInlineFallbackExtractor(tabId) {
 
       const root = getFallbackRoot();
       const content = normalizeWhitespace(root?.innerText || root?.textContent || '');
-      const truncatedContent = content.length > MAX_FALLBACK_CHARS
-        ? content.slice(0, MAX_FALLBACK_CHARS)
-        : content;
-
-      if (!truncatedContent) {
+      if (!content) {
         return {
           error: 'empty_content',
           message: 'No readable content was found in the fallback extractor.',
@@ -181,8 +144,8 @@ async function runInlineFallbackExtractor(tabId) {
         title: normalizeWhitespace(document.title || ''),
         url: location.href,
         siteName: normalizeWhitespace(location.hostname || ''),
-        excerpt: buildExcerpt(truncatedContent),
-        content: truncatedContent,
+        excerpt: buildExcerpt(content),
+        content,
         strategy: root === document.body ? 'inline-innerText' : 'inline-semantic-fallback',
         charCount: content.length,
       };
@@ -248,7 +211,6 @@ export async function extractTabContent(tabId) {
       );
     }
 
-    const truncated = truncateContent(rawContent);
     const successResult = {
       ok: true,
       tabId,
@@ -257,10 +219,10 @@ export async function extractTabContent(tabId) {
       siteName: extraction.siteName || '',
       excerpt: extraction.excerpt || '',
       strategy: extraction.strategy || 'unknown',
-      content: truncated.content,
-      charCount: truncated.originalCharCount,
-      truncated: truncated.truncated,
-      truncatedCharCount: truncated.content.length,
+      content: rawContent,
+      charCount: rawContent.length,
+      truncated: false,
+      truncatedCharCount: rawContent.length,
       extractedAt: Date.now(),
     };
 

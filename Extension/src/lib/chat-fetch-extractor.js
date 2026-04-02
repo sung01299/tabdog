@@ -1,9 +1,9 @@
 import { Readability } from '@mozilla/readability';
 
 const FETCH_EXTRACTOR_DEBUG_PREFIX = '[TabDog Chat][FetchExtractor]';
-const MAX_CONTENT_CHARS = 24000;
 const MIN_CONTENT_CHARS = 120;
 const EXCERPT_LENGTH = 280;
+const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'svg', 'iframe']);
 
 function logFetchExtractor(label, payload) {
   if (payload === undefined) {
@@ -32,34 +32,179 @@ function buildExcerpt(source) {
   return `${excerpt.slice(0, EXCERPT_LENGTH).trim()}...`;
 }
 
-function truncateContent(content, maxChars = MAX_CONTENT_CHARS) {
-  if (content.length <= maxChars) {
-    return {
-      content,
-      truncated: false,
-      originalCharCount: content.length,
-    };
+function pushBlock(blocks, block) {
+  const text = normalizeWhitespace(block?.text || '');
+  if (!text) return;
+
+  blocks.push({
+    type: block.type || 'paragraph',
+    text,
+    headingLevel: block.headingLevel || null,
+    headingText: block.headingText || '',
+  });
+}
+
+function serializeTable(table) {
+  const rows = [...table.querySelectorAll('tr')]
+    .map((row) =>
+      [...row.querySelectorAll('th, td')]
+        .map((cell) => normalizeWhitespace(cell.textContent || ''))
+        .filter(Boolean),
+    )
+    .filter((cells) => cells.length > 0);
+
+  if (!rows.length) {
+    return '';
   }
 
-  const paragraphs = content.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
-  let result = '';
+  return rows.map((cells) => `| ${cells.join(' | ')} |`).join('\n');
+}
 
-  for (const paragraph of paragraphs) {
-    const candidate = result ? `${result}\n\n${paragraph}` : paragraph;
-    if (candidate.length > maxChars) {
-      break;
+function serializeList(list, depth = 0) {
+  const lines = [];
+  const isOrdered = list.tagName.toLowerCase() === 'ol';
+
+  [...list.children].forEach((item, index) => {
+    if (item.tagName?.toLowerCase() !== 'li') return;
+
+    const nestedLists = [...item.querySelectorAll(':scope > ul, :scope > ol')];
+    const clone = item.cloneNode(true);
+    clone.querySelectorAll('ul, ol').forEach((nested) => nested.remove());
+    const itemText = normalizeWhitespace(clone.textContent || '');
+
+    if (itemText) {
+      const prefix = isOrdered ? `${index + 1}.` : '-';
+      lines.push(`${'  '.repeat(depth)}${prefix} ${itemText}`);
     }
-    result = candidate;
+
+    nestedLists.forEach((nested) => {
+      const nestedText = serializeList(nested, depth + 1);
+      if (nestedText) {
+        lines.push(nestedText);
+      }
+    });
+  });
+
+  return lines.join('\n');
+}
+
+function serializeBlockquote(blockquote) {
+  return normalizeWhitespace(
+    (blockquote.textContent || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => `> ${line}`)
+      .join('\n'),
+  );
+}
+
+function serializeCodeBlock(pre) {
+  const codeText = (pre.innerText || pre.textContent || '').trim();
+  if (!codeText) {
+    return '';
   }
 
-  if (!result) {
-    result = content.slice(0, maxChars);
+  return `\`\`\`\n${codeText}\n\`\`\``;
+}
+
+function collectStructuredBlocks(node, blocks) {
+  if (!node) return;
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    return;
   }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return;
+  }
+
+  const tag = node.tagName.toLowerCase();
+  if (SKIP_TAGS.has(tag)) {
+    return;
+  }
+
+  if (/^h[1-6]$/.test(tag)) {
+    const headingLevel = Number(tag[1]);
+    const headingText = normalizeWhitespace(node.textContent || '');
+    pushBlock(blocks, {
+      type: 'heading',
+      headingLevel,
+      headingText,
+      text: `${'#'.repeat(headingLevel)} ${headingText}`,
+    });
+    return;
+  }
+
+  if (tag === 'p') {
+    pushBlock(blocks, {
+      type: 'paragraph',
+      text: node.textContent || '',
+    });
+    return;
+  }
+
+  if (tag === 'pre') {
+    pushBlock(blocks, {
+      type: 'code',
+      text: serializeCodeBlock(node),
+    });
+    return;
+  }
+
+  if (tag === 'table') {
+    pushBlock(blocks, {
+      type: 'table',
+      text: serializeTable(node),
+    });
+    return;
+  }
+
+  if (tag === 'ul' || tag === 'ol') {
+    pushBlock(blocks, {
+      type: 'list',
+      text: serializeList(node),
+    });
+    return;
+  }
+
+  if (tag === 'blockquote') {
+    pushBlock(blocks, {
+      type: 'blockquote',
+      text: serializeBlockquote(node),
+    });
+    return;
+  }
+
+  const children = [...node.children];
+  if (!children.length) {
+    if (['div', 'section', 'article', 'main'].includes(tag)) {
+      pushBlock(blocks, {
+        type: 'paragraph',
+        text: node.textContent || '',
+      });
+    }
+    return;
+  }
+
+  children.forEach((child) => collectStructuredBlocks(child, blocks));
+}
+
+function blocksToContent(blocks) {
+  return blocks
+    .map((block) => block.text)
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+}
+
+function buildStructuredBlocksFromRoot(root) {
+  const blocks = [];
+  collectStructuredBlocks(root, blocks);
 
   return {
-    content: result.trim(),
-    truncated: true,
-    originalCharCount: content.length,
+    blocks,
+    content: blocksToContent(blocks),
   };
 }
 
@@ -74,7 +219,15 @@ function buildDocument(html, url) {
 
 function parseWithReadability(doc, titleHint, url) {
   const article = new Readability(doc).parse();
-  const content = normalizeWhitespace(article?.textContent || '');
+  const rawContent = normalizeWhitespace(article?.textContent || '');
+  const articleDoc = article?.content
+    ? buildDocument(`<article>${article.content}</article>`, url)
+    : null;
+  const articleRoot = articleDoc?.querySelector('article') || null;
+  const structured = articleRoot
+    ? buildStructuredBlocksFromRoot(articleRoot)
+    : { blocks: [], content: rawContent };
+  const content = rawContent;
 
   if (content.length < MIN_CONTENT_CHARS) {
     return null;
@@ -86,6 +239,8 @@ function parseWithReadability(doc, titleHint, url) {
     siteName: normalizeWhitespace(article?.siteName || new URL(url).hostname || ''),
     excerpt: buildExcerpt(article?.excerpt || content),
     content,
+    structuredContent: structured.content,
+    blocks: structured.blocks,
     strategy: 'fetch-readability',
   };
 }
@@ -114,17 +269,22 @@ function parseWithFallback(doc, titleHint, url) {
     }
   }
 
-  const content = normalizeWhitespace(root?.textContent || '');
-  if (content.length < MIN_CONTENT_CHARS) {
+  const rawContent = normalizeWhitespace(root?.textContent || '');
+  if (rawContent.length < MIN_CONTENT_CHARS) {
     throw new Error('Fetched HTML did not contain enough readable text.');
   }
+
+  const structured = buildStructuredBlocksFromRoot(root);
+  const structuredContent = structured.content || rawContent;
 
   return {
     title: normalizeWhitespace(doc.title || titleHint || ''),
     url,
     siteName: normalizeWhitespace(new URL(url).hostname || ''),
-    excerpt: buildExcerpt(content),
-    content,
+    excerpt: buildExcerpt(structuredContent),
+    content: rawContent,
+    structuredContent,
+    blocks: structured.blocks,
     strategy: root === doc.body ? 'fetch-textContent' : 'fetch-semantic-fallback',
   };
 }
@@ -174,8 +334,6 @@ export async function extractTabContentByFetch(tab) {
   const parsed = parseWithReadability(doc, tab.title, response.url || tab.url)
     || parseWithFallback(doc, tab.title, response.url || tab.url);
 
-  const truncated = truncateContent(parsed.content);
-
   const result = {
     ok: true,
     tabId: tab.id,
@@ -184,10 +342,12 @@ export async function extractTabContentByFetch(tab) {
     siteName: parsed.siteName || '',
     excerpt: parsed.excerpt || '',
     strategy: parsed.strategy,
-    content: truncated.content,
-    charCount: truncated.originalCharCount,
-    truncated: truncated.truncated,
-    truncatedCharCount: truncated.content.length,
+    content: parsed.content,
+    structuredContent: parsed.structuredContent || parsed.content,
+    blocks: parsed.blocks || [],
+    charCount: parsed.content.length,
+    truncated: false,
+    truncatedCharCount: parsed.content.length,
     extractedAt: Date.now(),
   };
 

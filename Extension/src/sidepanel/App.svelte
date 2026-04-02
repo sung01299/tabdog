@@ -1,7 +1,17 @@
 <script>
   import { onMount, tick } from 'svelte';
-  import { GEMINI_MODELS, streamTabChat } from '@services/gemini.js';
+  import { embedDocumentsIfNeeded, embedQuestion } from '@services/gemini-embeddings.js';
+  import {
+    extractBatchFindings,
+    GEMINI_MODELS,
+    streamTabChat,
+    synthesizeExhaustiveAnswer,
+    verifyTabAnswer,
+  } from '@services/gemini.js';
+  import { loadSessionDocuments, saveSessionDocumentRecords, saveSessionDocuments } from '../lib/chat-doc-store.js';
+  import { collectEvidenceChunksByIds, createExhaustiveBatches, planQuestionMode } from '../lib/chat-exhaustive.js';
   import { extractTabContentByFetch } from '../lib/chat-fetch-extractor.js';
+  import { retrieveRelevantChunks } from '../lib/chat-retrieval.js';
   import {
     CHAT_LAUNCH_CONTEXT_KEY,
     createChatSession,
@@ -21,6 +31,7 @@
   let selectedTabIds = $state([]);
   let messages = $state([]);
   let tabSummaries = $state([]);
+  let availableDocuments = $state([]);
   let apiKey = $state('');
   let model = $state(GEMINI_MODELS[0].id);
   let inputValue = $state('');
@@ -43,7 +54,7 @@
   );
 
   const canSend = $derived.by(() =>
-    Boolean(apiKey.trim() && inputValue.trim() && selectedTabs.length > 0 && !isSending),
+    Boolean(apiKey.trim() && inputValue.trim() && (selectedTabs.length > 0 || availableDocuments.length > 0) && !isSending),
   );
 
   function getOriginPattern(url) {
@@ -103,12 +114,122 @@
     console.log(`${DEBUG_PREFIX} ${label}`, payload);
   }
 
+  function dedupeBy(items, keyFn) {
+    const seen = new Set();
+    const result = [];
+
+    for (const item of items) {
+      const key = keyFn(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(item);
+    }
+
+    return result;
+  }
+
+  function mergeExhaustiveFindings(batchFindings) {
+    const merged = [];
+
+    for (const batchResult of batchFindings) {
+      for (const finding of batchResult.findings || []) {
+        merged.push({
+          ...finding,
+          chunkIds: dedupeBy(finding.chunkIds || [], (item) => item),
+          quotes: dedupeBy(finding.quotes || [], (item) => item),
+        });
+      }
+    }
+
+    return dedupeBy(merged, (finding) =>
+      `${finding.statement}::${(finding.chunkIds || []).join('|')}`,
+    );
+  }
+
+  function dedupeEvidenceChunks(evidenceChunks) {
+    return dedupeBy(evidenceChunks || [], (chunk) => chunk.chunkId);
+  }
+
+  function reconcileExtractionResults(tab, fetchResult, domResult) {
+    const fetchOk = Boolean(fetchResult?.ok);
+    const domOk = Boolean(domResult?.ok);
+
+    logDebug('Reconciling extraction results', {
+      tab,
+      fetchOk,
+      domOk,
+      fetchResult,
+      domResult,
+    });
+
+    if (fetchOk && domOk) {
+      const fetchChars = fetchResult.charCount || fetchResult.content?.length || 0;
+      const domChars = domResult.charCount || domResult.content?.length || 0;
+      const domLooksRicher =
+        domChars > fetchChars + 1500 ||
+        (fetchChars > 0 && domChars / fetchChars >= 1.25);
+
+      if (domLooksRicher) {
+        const merged = {
+          ...fetchResult,
+          title: domResult.title || fetchResult.title || tab.title,
+          url: domResult.url || fetchResult.url || tab.url,
+          excerpt: domResult.excerpt || fetchResult.excerpt || '',
+          content: domResult.content,
+          charCount: domChars,
+          truncated: false,
+          truncatedCharCount: domChars,
+          strategy: `${fetchResult.strategy}+dom-rendered`,
+          mergeReason: 'dom-richer-than-fetch',
+          rawDomCharCount: domChars,
+          rawFetchCharCount: fetchChars,
+        };
+
+        logDebug('Using merged extraction with DOM content', merged);
+        return merged;
+      }
+
+      const merged = {
+        ...fetchResult,
+        mergeReason: 'fetch-close-to-dom',
+        rawDomCharCount: domChars,
+        rawFetchCharCount: fetchChars,
+      };
+
+      logDebug('Using fetch extraction as primary source', merged);
+      return merged;
+    }
+
+    if (fetchOk) {
+      logDebug('Using fetch extraction only', fetchResult);
+      return fetchResult;
+    }
+
+    if (domOk) {
+      logDebug('Using DOM extraction only', domResult);
+      return domResult;
+    }
+
+    return null;
+  }
+
   function updateAssistantMessage(messageId, updater) {
     messages = messages.map((message) =>
       message.id === messageId
         ? {
             ...message,
             content: updater(message.content),
+          }
+        : message,
+    );
+  }
+
+  function patchMessage(messageId, patch) {
+    messages = messages.map((message) =>
+      message.id === messageId
+        ? {
+            ...message,
+            ...patch,
           }
         : message,
     );
@@ -126,6 +247,7 @@
     activeSessionId = '';
     messages = [];
     tabSummaries = [];
+    availableDocuments = [];
     usageMessage = '';
   }
 
@@ -228,6 +350,7 @@
     activeSessionId = session.id;
     messages = session.messages || [];
     tabSummaries = session.tabSummaries || [];
+    availableDocuments = await loadSessionDocuments(session.id);
     usageMessage = session.usageMessage || '';
     await scrollMessagesToBottom();
     return session;
@@ -290,6 +413,7 @@
         if (launchContext.mode === 'conversation' && launchSession) {
           const matchedIds = findTabSelectionForSession(nextTabs, launchSession);
           selectedTabIds = matchedIds;
+          availableDocuments = await loadSessionDocuments(launchSession.id);
 
           if (!matchedIds.length && (launchSession.tabRefs?.length || launchSession.tabSummaries?.length)) {
             statusMessage = 'Saved conversation opened. Select an open tab to continue chatting.';
@@ -321,6 +445,10 @@
         if (activeTab) {
           selectedTabIds = [activeTab.id];
         }
+      }
+
+      if (activeSessionId) {
+        availableDocuments = await loadSessionDocuments(activeSessionId);
       }
     } finally {
       isLoadingTabs = false;
@@ -392,36 +520,203 @@
         throw new Error(`Site access was denied for ${tab.hostname || tab.title}.`);
       }
 
-      try {
-        statusMessage = `Fetching ${tab.title}...`;
-        const fetchResult = await extractTabContentByFetch(tab);
-        logDebug('Fetch extraction success', fetchResult);
-        contexts.push(fetchResult);
-        continue;
-      } catch (fetchError) {
-        logDebug('Fetch extraction failed, falling back to background injection', {
-          tab,
-          error: fetchError,
-          message: fetchError?.message,
-        });
-      }
-
       statusMessage = `Reading ${tab.title}...`;
-      const result = await chrome.runtime.sendMessage({
-        action: 'extractTabContent',
-        tabId: tab.id,
-      });
+      const [fetchAttempt, domAttempt] = await Promise.allSettled([
+        extractTabContentByFetch(tab),
+        chrome.runtime.sendMessage({
+          action: 'extractTabContent',
+          tabId: tab.id,
+        }),
+      ]);
 
-      if (!result?.ok) {
-        logDebug('Tab extraction failed', { tab, result });
-        throw new Error(result?.message || `Failed to read ${tab.title}.`);
+      const fetchResult = fetchAttempt.status === 'fulfilled'
+        ? fetchAttempt.value
+        : null;
+      const domResult = domAttempt.status === 'fulfilled'
+        ? domAttempt.value
+        : null;
+
+      if (fetchAttempt.status === 'rejected') {
+        logDebug('Fetch extraction failed', {
+          tab,
+          error: fetchAttempt.reason,
+          message: fetchAttempt.reason?.message,
+        });
+      } else {
+        logDebug('Fetch extraction success', fetchResult);
       }
 
-      logDebug('Tab extraction success', result);
-      contexts.push(result);
+      if (domAttempt.status === 'rejected') {
+        logDebug('DOM extraction request failed', {
+          tab,
+          error: domAttempt.reason,
+          message: domAttempt.reason?.message,
+        });
+      } else {
+        logDebug('DOM extraction success', domResult);
+      }
+
+      const finalResult = reconcileExtractionResults(tab, fetchResult, domResult);
+      if (!finalResult?.ok) {
+        logDebug('Tab extraction failed after reconciliation', {
+          tab,
+          fetchResult,
+          domResult,
+        });
+        throw new Error(
+          finalResult?.message ||
+          fetchAttempt.reason?.message ||
+          domAttempt.reason?.message ||
+          `Failed to read ${tab.title}.`,
+        );
+      }
+
+      contexts.push(finalResult);
     }
 
     return contexts;
+  }
+
+  async function resolveDocumentsForQuestion(sessionId) {
+    if (selectedTabs.length > 0) {
+      const contexts = await extractSelectedTabContexts(selectedTabs);
+      const storedDocuments = await saveSessionDocuments(sessionId, contexts);
+      availableDocuments = storedDocuments;
+
+      return {
+        contexts,
+        documents: storedDocuments,
+        source: 'fresh-extraction',
+      };
+    }
+
+    const storedDocuments = await loadSessionDocuments(sessionId);
+    availableDocuments = storedDocuments;
+
+    if (!storedDocuments.length) {
+      throw new Error('No stored tab content is available. Select a tab to continue.');
+    }
+
+    return {
+      contexts: [],
+      documents: storedDocuments,
+      source: 'stored-documents',
+    };
+  }
+
+  async function ensureEmbeddingsForDocuments(sessionId, documents, question) {
+    try {
+      statusMessage = 'Embedding document chunks for retrieval...';
+      const embeddedDocuments = await embedDocumentsIfNeeded({
+        apiKey,
+        documents,
+        signal: abortController?.signal,
+      });
+      await saveSessionDocumentRecords(embeddedDocuments);
+      availableDocuments = embeddedDocuments;
+
+      statusMessage = 'Embedding your question...';
+      const queryEmbedding = await embedQuestion({
+        apiKey,
+        question,
+        signal: abortController?.signal,
+      });
+
+      logDebug('Embedding pipeline complete', {
+        sessionId,
+        documentCount: embeddedDocuments.length,
+        queryEmbeddingLength: queryEmbedding.length,
+      });
+
+      return {
+        documents: embeddedDocuments,
+        queryEmbedding,
+      };
+    } catch (embeddingError) {
+      logDebug('Embedding pipeline failed, continuing with lexical retrieval only', {
+        error: embeddingError,
+        message: embeddingError?.message,
+      });
+
+      return {
+        documents,
+        queryEmbedding: null,
+      };
+    }
+  }
+
+  async function runExhaustiveQuestionMode({ question, documents }) {
+    const batches = createExhaustiveBatches(documents, selectedTabIds);
+    const batchFindings = [];
+    const relevantEvidence = [];
+
+    for (let index = 0; index < batches.length; index += 1) {
+      const batch = batches[index];
+      statusMessage = `Sweeping sections ${index + 1}/${batches.length}...`;
+
+      const result = await extractBatchFindings({
+        apiKey,
+        model,
+        question,
+        evidenceChunks: batch.evidenceChunks,
+        signal: abortController.signal,
+      });
+
+      logDebug('Exhaustive batch findings', {
+        batch,
+        result,
+      });
+
+      if (result.relevant) {
+        batchFindings.push(result);
+        relevantEvidence.push(...batch.evidenceChunks);
+      }
+    }
+
+    const mergedFindings = mergeExhaustiveFindings(batchFindings);
+    logDebug('Merged exhaustive findings', mergedFindings);
+
+    if (!mergedFindings.length) {
+      return {
+        draftAnswer: '해당 열린 탭 내용만으로는 확인되지 않습니다.',
+        evidenceChunks: [],
+        synthesis: {
+          supported: false,
+          answer: '해당 열린 탭 내용만으로는 확인되지 않습니다.',
+          citations: [],
+          unsupportedClaims: [],
+          missingInformation: ['No relevant evidence was found across the selected tabs.'],
+        },
+      };
+    }
+
+    const citedChunkIds = dedupeBy(
+      mergedFindings.flatMap((finding) => finding.chunkIds || []),
+      (item) => item,
+    );
+
+    const citedEvidence = collectEvidenceChunksByIds(documents, selectedTabIds, citedChunkIds);
+    const finalEvidenceChunks = dedupeEvidenceChunks([
+      ...citedEvidence,
+      ...relevantEvidence,
+    ]);
+
+    statusMessage = 'Synthesizing exhaustive answer...';
+    const synthesis = await synthesizeExhaustiveAnswer({
+      apiKey,
+      model,
+      question,
+      findings: mergedFindings,
+      signal: abortController.signal,
+    });
+
+    logDebug('Exhaustive synthesis result', synthesis);
+
+    return {
+      draftAnswer: synthesis.answer || '해당 열린 탭 내용만으로는 확인되지 않습니다.',
+      evidenceChunks: finalEvidenceChunks,
+      synthesis,
+    };
   }
 
   function toggleTabSelection(tabId) {
@@ -481,36 +776,135 @@
     try {
       await persistConversation(sessionId);
 
-      const contexts = await extractSelectedTabContexts(selectedTabs);
-      tabSummaries = contexts.map((context) => ({
-        tabId: context.tabId,
-        title: context.title,
-        url: context.url,
-        strategy: context.strategy,
-        truncated: context.truncated,
-        charCount: context.charCount,
-      }));
+      const { contexts, documents, source } = await resolveDocumentsForQuestion(sessionId);
+
+      if (contexts.length > 0) {
+        tabSummaries = contexts.map((context) => ({
+          tabId: context.tabId,
+          title: context.title,
+          url: context.url,
+          strategy: context.strategy,
+          truncated: context.truncated,
+          charCount: context.charCount,
+        }));
+      } else {
+        tabSummaries = documents.map((documentRecord) => ({
+          tabId: documentRecord.tabId,
+          title: documentRecord.title,
+          url: documentRecord.url,
+          strategy: documentRecord.strategy,
+          truncated: false,
+          charCount: documentRecord.charCount,
+        }));
+      }
+
+      logDebug('Context source for question', {
+        source,
+        contextCount: contexts.length,
+        documentCount: documents.length,
+      });
       logDebug('Built tab summaries for prompt', tabSummaries);
       logDebug('Full extracted contexts for prompt', contexts);
 
-      statusMessage = 'Streaming answer from Gemini...';
-      await persistConversation(sessionId);
-
-      const response = await streamTabChat({
-        apiKey,
-        model,
-        messages: [...messages].filter((message) => message.id !== assistantMessage.id),
-        tabContexts: contexts,
-        signal: abortController.signal,
-        onChunk: async (chunk) => {
-          logDebug('Received Gemini chunk', chunk);
-          updateAssistantMessage(assistantMessage.id, (content) => `${content}${chunk}`);
-          await scrollMessagesToBottom();
-        },
+      const questionMode = planQuestionMode({
+        question: userMessage.content,
+        documents,
+        selectedTabIds,
       });
+      logDebug('Question mode selected', questionMode);
 
-      logDebug('Gemini response complete', response);
-      usageMessage = formatUsage(response.usageMetadata);
+      let draftAnswer = '';
+      let evidenceChunks = [];
+      let responseUsage = null;
+      let preVerifiedResult = null;
+
+      if (questionMode.mode === 'exhaustive') {
+        const exhaustiveResult = await runExhaustiveQuestionMode({
+          question: userMessage.content,
+          documents,
+        });
+        draftAnswer = exhaustiveResult.draftAnswer;
+        evidenceChunks = exhaustiveResult.evidenceChunks;
+        preVerifiedResult = exhaustiveResult.synthesis;
+        patchMessage(assistantMessage.id, {
+          content: draftAnswer,
+        });
+        await scrollMessagesToBottom();
+      } else {
+        const embeddingState = await ensureEmbeddingsForDocuments(
+          sessionId,
+          documents,
+          userMessage.content,
+        );
+
+        statusMessage = 'Retrieving the most relevant evidence...';
+        evidenceChunks = retrieveRelevantChunks({
+          documents: embeddingState.documents,
+          question: userMessage.content,
+          selectedTabIds,
+          queryEmbedding: embeddingState.queryEmbedding,
+        });
+        logDebug('Retrieved evidence chunks for prompt', evidenceChunks);
+
+        statusMessage = 'Streaming answer from Gemini...';
+        await persistConversation(sessionId);
+
+        const response = await streamTabChat({
+          apiKey,
+          model,
+          messages: [...messages].filter((message) => message.id !== assistantMessage.id),
+          evidenceChunks,
+          signal: abortController.signal,
+          onChunk: async (chunk) => {
+            logDebug('Received Gemini chunk', chunk);
+            updateAssistantMessage(assistantMessage.id, (content) => `${content}${chunk}`);
+            await scrollMessagesToBottom();
+          },
+        });
+
+        logDebug('Gemini response complete', response);
+        draftAnswer = response.text;
+        responseUsage = response.usageMetadata;
+      }
+
+      statusMessage = 'Verifying evidence and pruning unsupported claims...';
+
+      try {
+        const verification = await verifyTabAnswer({
+          apiKey,
+          model,
+          question: userMessage.content,
+          draftAnswer,
+          evidenceChunks,
+          signal: abortController.signal,
+        });
+
+        logDebug('Verifier result', verification);
+        patchMessage(assistantMessage.id, {
+          content: verification.answer || response.text,
+          citations: verification.citations || [],
+          supported: verification.supported,
+          unsupportedClaims: verification.unsupportedClaims || [],
+          missingInformation: verification.missingInformation || [],
+        });
+      } catch (verificationError) {
+        logDebug('Verifier failed, keeping original answer', {
+          error: verificationError,
+          message: verificationError?.message,
+        });
+
+        if (preVerifiedResult) {
+          patchMessage(assistantMessage.id, {
+            content: preVerifiedResult.answer || draftAnswer,
+            citations: preVerifiedResult.citations || [],
+            supported: preVerifiedResult.supported,
+            unsupportedClaims: preVerifiedResult.unsupportedClaims || [],
+            missingInformation: preVerifiedResult.missingInformation || [],
+          });
+        }
+      }
+
+      usageMessage = formatUsage(responseUsage);
       statusMessage = '';
       await persistConversation(sessionId);
     } catch (error) {
@@ -743,6 +1137,22 @@
                   {message.role === 'user' ? 'You' : 'TabDog'}
                 </div>
                 <p>{message.content || (isSending && message.role === 'assistant' ? 'Thinking...' : '')}</p>
+                {#if message.role === 'assistant' && message.citations?.length}
+                  <div class="citation-list">
+                    {#each message.citations as citation}
+                      <div class="citation-item">
+                        <strong>{citation.chunkId}</strong>
+                        <span>{citation.quote}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+                {#if message.role === 'assistant' && message.missingInformation?.length}
+                  <div class="missing-info">
+                    <strong>Missing info</strong>
+                    <span>{message.missingInformation.join(' · ')}</span>
+                  </div>
+                {/if}
               </div>
             </article>
           {/each}
@@ -1112,6 +1522,42 @@
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.5;
+  }
+
+  .citation-list,
+  .missing-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .message-bubble:not(.user) .citation-list,
+  .message-bubble:not(.user) .missing-info {
+    border-top-color: var(--divider-color);
+  }
+
+  .citation-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .citation-item strong,
+  .missing-info strong {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+  }
+
+  .citation-item span,
+  .missing-info span {
+    opacity: 0.92;
   }
 
   .composer {
