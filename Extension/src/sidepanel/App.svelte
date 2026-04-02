@@ -1,19 +1,411 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { GEMINI_MODELS, streamTabChat } from '@services/gemini.js';
+
+  const CHAT_SETTINGS_KEY = 'tabdogChatSettings';
+  const CHAT_SESSIONS_KEY = 'tabdogChatSessions';
+  const MAX_SELECTED_TABS = 2;
+  const MAX_STORED_MESSAGES = 24;
 
   let darkMode = $state(false);
+  let tabs = $state([]);
+  let selectedTabIds = $state([]);
+  let messages = $state([]);
+  let tabSummaries = $state([]);
+  let apiKey = $state('');
+  let model = $state(GEMINI_MODELS[0].id);
+  let inputValue = $state('');
+  let statusMessage = $state('');
+  let errorMessage = $state('');
+  let usageMessage = $state('');
+  let settingsSavedMessage = $state('');
+  let isLoadingTabs = $state(true);
+  let isSending = $state(false);
+  let activeConversationKey = $state('');
+  let messagesViewport = $state(null);
+  let currentHydrationKey = '';
+  let abortController = null;
 
-  onMount(async () => {
-    const result = await chrome.storage.local.get('theme');
-    darkMode = result.theme === 'dark';
-    if (darkMode) document.documentElement.classList.add('dark-mode');
+  const eligibleTabs = $derived.by(() =>
+    tabs.filter((tab) => tab.isSupported),
+  );
 
-    chrome.storage.onChanged.addListener((changes) => {
+  const selectedTabs = $derived.by(() =>
+    eligibleTabs.filter((tab) => selectedTabIds.includes(tab.id)),
+  );
+
+  const canSend = $derived.by(() =>
+    Boolean(apiKey.trim() && inputValue.trim() && selectedTabs.length > 0 && !isSending),
+  );
+
+  function createConversationKey(tabList) {
+    if (!tabList.length) return '';
+
+    return tabList
+      .map((tab) => `${tab.id}:${tab.url || ''}`)
+      .sort()
+      .join('|');
+  }
+
+  function getOriginPattern(url) {
+    const parsed = new URL(url);
+    return `${parsed.origin}/*`;
+  }
+
+  function createMessage(role, content, extra = {}) {
+    return {
+      id: crypto.randomUUID(),
+      role,
+      content,
+      createdAt: Date.now(),
+      ...extra,
+    };
+  }
+
+  function pruneMessages(messageList) {
+    return messageList.slice(-MAX_STORED_MESSAGES);
+  }
+
+  function isSupportedUrl(url) {
+    return /^https?:\/\//.test(url || '');
+  }
+
+  function formatHost(url) {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return url || '';
+    }
+  }
+
+  function formatUsage(usageMetadata) {
+    if (!usageMetadata) return '';
+
+    const parts = [];
+    if (usageMetadata.promptTokenCount != null) {
+      parts.push(`Prompt ${usageMetadata.promptTokenCount}`);
+    }
+    if (usageMetadata.candidatesTokenCount != null) {
+      parts.push(`Output ${usageMetadata.candidatesTokenCount}`);
+    }
+    if (usageMetadata.totalTokenCount != null) {
+      parts.push(`Total ${usageMetadata.totalTokenCount}`);
+    }
+
+    return parts.length ? `${parts.join(' · ')} tokens` : '';
+  }
+
+  function updateAssistantMessage(messageId, updater) {
+    messages = messages.map((message) =>
+      message.id === messageId
+        ? {
+            ...message,
+            content: updater(message.content),
+          }
+        : message,
+    );
+  }
+
+  async function scrollMessagesToBottom() {
+    await tick();
+    messagesViewport?.scrollTo({
+      top: messagesViewport.scrollHeight,
+      behavior: 'smooth',
+    });
+  }
+
+  async function loadSettings() {
+    const result = await chrome.storage.local.get(CHAT_SETTINGS_KEY);
+    const settings = result[CHAT_SETTINGS_KEY] || {};
+    apiKey = settings.apiKey || '';
+    model = settings.model || GEMINI_MODELS[0].id;
+  }
+
+  async function saveSettings() {
+    await chrome.storage.local.set({
+      [CHAT_SETTINGS_KEY]: {
+        apiKey: apiKey.trim(),
+        model,
+      },
+    });
+
+    settingsSavedMessage = 'Settings saved locally.';
+    setTimeout(() => {
+      settingsSavedMessage = '';
+    }, 1800);
+  }
+
+  async function loadTabs({ keepSelection = true } = {}) {
+    isLoadingTabs = true;
+
+    try {
+      const chromeTabs = await chrome.tabs.query({ currentWindow: true });
+      const nextTabs = chromeTabs
+        .map((tab) => ({
+          id: tab.id,
+          title: tab.title || 'Untitled tab',
+          url: tab.url || '',
+          active: Boolean(tab.active),
+          favIconUrl: tab.favIconUrl || '',
+          hostname: formatHost(tab.url),
+          isSupported: isSupportedUrl(tab.url),
+        }))
+        .sort((a, b) => {
+          if (a.active) return -1;
+          if (b.active) return 1;
+          return a.title.localeCompare(b.title);
+        });
+
+      tabs = nextTabs;
+
+      if (keepSelection) {
+        const validIds = new Set(nextTabs.map((tab) => tab.id));
+        selectedTabIds = selectedTabIds.filter((tabId) => validIds.has(tabId));
+      } else {
+        selectedTabIds = [];
+      }
+
+      if (!selectedTabIds.length) {
+        const activeTab = nextTabs.find((tab) => tab.active && tab.isSupported);
+        if (activeTab) {
+          selectedTabIds = [activeTab.id];
+        }
+      }
+    } finally {
+      isLoadingTabs = false;
+    }
+  }
+
+  async function hydrateConversation(conversationKey) {
+    currentHydrationKey = conversationKey;
+
+    if (!conversationKey) {
+      activeConversationKey = '';
+      messages = [];
+      tabSummaries = [];
+      usageMessage = '';
+      return;
+    }
+
+    const result = await chrome.storage.local.get(CHAT_SESSIONS_KEY);
+    const sessions = result[CHAT_SESSIONS_KEY] || {};
+    const session = sessions[conversationKey];
+
+    if (currentHydrationKey !== conversationKey) {
+      return;
+    }
+
+    activeConversationKey = conversationKey;
+    messages = session?.messages || [];
+    tabSummaries = session?.tabSummaries || [];
+    usageMessage = session?.usageMessage || '';
+    await scrollMessagesToBottom();
+  }
+
+  async function persistConversation() {
+    if (!activeConversationKey) return;
+
+    const result = await chrome.storage.local.get(CHAT_SESSIONS_KEY);
+    const sessions = result[CHAT_SESSIONS_KEY] || {};
+    sessions[activeConversationKey] = {
+      messages: pruneMessages(messages),
+      tabSummaries,
+      usageMessage,
+      updatedAt: Date.now(),
+    };
+
+    await chrome.storage.local.set({
+      [CHAT_SESSIONS_KEY]: sessions,
+    });
+  }
+
+  async function ensureTabAccess(tab) {
+    const originPattern = getOriginPattern(tab.url);
+    const alreadyGranted = await chrome.permissions.contains({
+      origins: [originPattern],
+    });
+
+    if (alreadyGranted) {
+      return true;
+    }
+
+    return chrome.permissions.request({
+      origins: [originPattern],
+    });
+  }
+
+  async function extractSelectedTabContexts(tabList) {
+    const contexts = [];
+
+    for (const tab of tabList) {
+      statusMessage = `Requesting access to ${tab.title}...`;
+      const granted = await ensureTabAccess(tab);
+      if (!granted) {
+        throw new Error(`Site access was denied for ${tab.hostname || tab.title}.`);
+      }
+
+      statusMessage = `Reading ${tab.title}...`;
+      const result = await chrome.runtime.sendMessage({
+        action: 'extractTabContent',
+        tabId: tab.id,
+      });
+
+      if (!result?.ok) {
+        throw new Error(result?.message || `Failed to read ${tab.title}.`);
+      }
+
+      contexts.push(result);
+    }
+
+    return contexts;
+  }
+
+  function toggleTabSelection(tabId) {
+    errorMessage = '';
+
+    if (selectedTabIds.includes(tabId)) {
+      selectedTabIds = selectedTabIds.filter((id) => id !== tabId);
+      return;
+    }
+
+    if (selectedTabIds.length >= MAX_SELECTED_TABS) {
+      errorMessage = 'You can compare up to 2 tabs at a time.';
+      return;
+    }
+
+    selectedTabIds = [...selectedTabIds, tabId];
+  }
+
+  async function stopStreaming() {
+    abortController?.abort();
+    abortController = null;
+    isSending = false;
+    statusMessage = 'Response stopped.';
+    await persistConversation();
+  }
+
+  async function submitMessage() {
+    if (!canSend) return;
+
+    errorMessage = '';
+    usageMessage = '';
+    settingsSavedMessage = '';
+    statusMessage = 'Preparing your selected tabs...';
+
+    const conversationKey = createConversationKey(selectedTabs);
+    if (conversationKey && conversationKey !== activeConversationKey) {
+      await hydrateConversation(conversationKey);
+    }
+
+    await saveSettings();
+
+    const userMessage = createMessage('user', inputValue.trim());
+    const assistantMessage = createMessage('assistant', '');
+    inputValue = '';
+    messages = [...messages, userMessage, assistantMessage];
+    await scrollMessagesToBottom();
+
+    isSending = true;
+    abortController?.abort();
+    abortController = new AbortController();
+
+    try {
+      const contexts = await extractSelectedTabContexts(selectedTabs);
+      tabSummaries = contexts.map((context) => ({
+        tabId: context.tabId,
+        title: context.title,
+        url: context.url,
+        strategy: context.strategy,
+        truncated: context.truncated,
+        charCount: context.charCount,
+      }));
+
+      statusMessage = 'Streaming answer from Gemini...';
+      await persistConversation();
+
+      const response = await streamTabChat({
+        apiKey,
+        model,
+        messages: [...messages].filter((message) => message.id !== assistantMessage.id),
+        tabContexts: contexts,
+        signal: abortController.signal,
+        onChunk: async (chunk) => {
+          updateAssistantMessage(assistantMessage.id, (content) => `${content}${chunk}`);
+          await scrollMessagesToBottom();
+        },
+      });
+
+      usageMessage = formatUsage(response.usageMetadata);
+      statusMessage = '';
+      await persistConversation();
+    } catch (error) {
+      const isAbort = error?.name === 'AbortError';
+      if (!isAbort) {
+        errorMessage = error?.message || 'Something went wrong while generating a response.';
+      }
+
+      const hasAssistantContent = messages.find((message) => message.id === assistantMessage.id)?.content;
+      if (!hasAssistantContent) {
+        messages = messages.filter((message) => message.id !== assistantMessage.id);
+      }
+
+      if (isAbort) {
+        statusMessage = 'Response stopped.';
+      } else {
+        statusMessage = '';
+      }
+
+      await persistConversation();
+    } finally {
+      isSending = false;
+      abortController = null;
+    }
+  }
+
+  $effect(() => {
+    const conversationKey = createConversationKey(selectedTabs);
+    if (conversationKey === activeConversationKey) {
+      return;
+    }
+
+    hydrateConversation(conversationKey);
+  });
+
+  onMount(() => {
+    const handleStorageChanged = (changes) => {
       if (changes.theme) {
         darkMode = changes.theme.newValue === 'dark';
         document.documentElement.classList.toggle('dark-mode', darkMode);
       }
-    });
+    };
+
+    const refreshTabs = () => {
+      loadTabs();
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChanged);
+    chrome.tabs.onActivated.addListener(refreshTabs);
+    chrome.tabs.onCreated.addListener(refreshTabs);
+    chrome.tabs.onRemoved.addListener(refreshTabs);
+    chrome.tabs.onUpdated.addListener(refreshTabs);
+
+    (async () => {
+      const themeResult = await chrome.storage.local.get('theme');
+      darkMode = themeResult.theme === 'dark';
+      document.documentElement.classList.toggle('dark-mode', darkMode);
+
+      await loadSettings();
+      await loadTabs();
+    })();
+
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChanged);
+      chrome.tabs.onActivated.removeListener(refreshTabs);
+      chrome.tabs.onCreated.removeListener(refreshTabs);
+      chrome.tabs.onRemoved.removeListener(refreshTabs);
+      chrome.tabs.onUpdated.removeListener(refreshTabs);
+      abortController?.abort();
+    };
   });
 </script>
 
@@ -24,21 +416,179 @@
         <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/>
         <path d="M6.5 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm5 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-7.46 3.08a.5.5 0 0 1 .692-.138c.36.226.926.394 1.636.519C7.074 9.584 7.973 9.64 8 9.64c.027 0 .926-.056 1.632-.181.71-.125 1.276-.293 1.636-.519a.5.5 0 0 1 .554.832C11.162 10.2 10.428 10.4 9.67 10.54 8.91 10.68 8.186 10.74 8 10.74s-.91-.06-1.67-.2c-.758-.14-1.492-.34-2.152-.77a.5.5 0 0 1-.138-.692z"/>
       </svg>
-      <span>TabDog Chat</span>
+      <div>
+        <div>TabDog Chat</div>
+        <p class="header-subtitle">Ask questions about up to 2 tabs</p>
+      </div>
     </div>
+    <button class="refresh-button" onclick={() => loadTabs()}>
+      Refresh
+    </button>
   </header>
 
   <main class="sidepanel-content">
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+    <section class="panel-card">
+      <div class="section-heading">
+        <h2>Settings</h2>
+        {#if settingsSavedMessage}
+          <span class="hint success">{settingsSavedMessage}</span>
+        {/if}
       </div>
-      <h2>Chat with your tabs</h2>
-      <p>Select a tab and start asking questions about its content.</p>
-      <p class="setup-hint">Set up your API key in settings to get started.</p>
-    </div>
+
+      <label class="field">
+        <span>Gemini API key</span>
+        <input
+          type="password"
+          bind:value={apiKey}
+          placeholder="Paste your Gemini API key"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="field">
+        <span>Model</span>
+        <select bind:value={model}>
+          {#each GEMINI_MODELS as modelOption}
+            <option value={modelOption.id}>
+              {modelOption.label} · {modelOption.description}
+            </option>
+          {/each}
+        </select>
+      </label>
+
+      <div class="settings-actions">
+        <button class="secondary-button" onclick={saveSettings}>
+          Save settings
+        </button>
+        <p class="hint">Stored only in this Chrome profile.</p>
+      </div>
+    </section>
+
+    <section class="panel-card">
+      <div class="section-heading">
+        <h2>Selected tabs</h2>
+        <span class="hint">{selectedTabs.length}/{MAX_SELECTED_TABS} selected</span>
+      </div>
+
+      {#if isLoadingTabs}
+        <p class="hint">Loading tabs...</p>
+      {:else if !tabs.length}
+        <p class="hint">No tabs found in this window.</p>
+      {:else}
+        <div class="tab-list">
+          {#each tabs as tab}
+            <button
+              class="tab-option"
+              class:selected={selectedTabIds.includes(tab.id)}
+              class:disabled={!tab.isSupported}
+              onclick={() => tab.isSupported && toggleTabSelection(tab.id)}
+              disabled={!tab.isSupported}
+            >
+              <div class="tab-option-main">
+                <span class="tab-option-title">{tab.title}</span>
+                <span class="tab-option-host">{tab.hostname}</span>
+              </div>
+              <span class="tab-option-meta">
+                {#if !tab.isSupported}
+                  Unsupported
+                {:else if tab.active}
+                  Active
+                {:else if selectedTabIds.includes(tab.id)}
+                  Selected
+                {/if}
+              </span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+
+      {#if tabSummaries.length}
+        <div class="summary-list">
+          {#each tabSummaries as summary}
+            <div class="summary-item">
+              <strong>{summary.title}</strong>
+              <span>{summary.strategy} · {summary.charCount} chars{summary.truncated ? ' · truncated' : ''}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <section class="panel-card chat-card">
+      <div class="section-heading">
+        <h2>Conversation</h2>
+        {#if usageMessage}
+          <span class="hint">{usageMessage}</span>
+        {/if}
+      </div>
+
+      {#if errorMessage}
+        <div class="banner error">{errorMessage}</div>
+      {/if}
+
+      {#if statusMessage}
+        <div class="banner status">{statusMessage}</div>
+      {/if}
+
+      <div class="messages" bind:this={messagesViewport}>
+        {#if !messages.length}
+          <div class="empty-state">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3>Chat with your tabs</h3>
+            <p>Select one or two tabs, save your API key, and ask a question.</p>
+          </div>
+        {:else}
+          {#each messages as message}
+            <article class="message-row" class:user={message.role === 'user'}>
+              <div class="message-bubble" class:user={message.role === 'user'}>
+                <div class="message-role">
+                  {message.role === 'user' ? 'You' : 'TabDog'}
+                </div>
+                <p>{message.content || (isSending && message.role === 'assistant' ? 'Thinking...' : '')}</p>
+              </div>
+            </article>
+          {/each}
+        {/if}
+      </div>
+
+      <form
+        class="composer"
+        onsubmit={(event) => {
+          event.preventDefault();
+          submitMessage();
+        }}
+      >
+        <textarea
+          bind:value={inputValue}
+          rows="3"
+          placeholder="Ask about the selected tabs..."
+        ></textarea>
+
+        <div class="composer-actions">
+          <p class="hint">
+            {selectedTabs.length
+              ? `${selectedTabs.length} tab${selectedTabs.length > 1 ? 's' : ''} ready`
+              : 'Select at least one supported tab'}
+          </p>
+
+          <div class="composer-buttons">
+            {#if isSending}
+              <button type="button" class="secondary-button" onclick={stopStreaming}>
+                Stop
+              </button>
+            {/if}
+            <button type="submit" class="primary-button" disabled={!canSend}>
+              Send
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
   </main>
 </div>
 
@@ -53,7 +603,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    gap: 12px;
+    padding: 14px 16px;
     border-bottom: 1px solid var(--divider-color);
     background: var(--bg-primary);
     flex-shrink: 0;
@@ -68,6 +619,13 @@
     color: var(--text-primary);
   }
 
+  .header-subtitle {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
   .logo {
     width: 20px;
     height: 20px;
@@ -79,17 +637,226 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .panel-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--divider-color);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, var(--bg-primary), var(--bg-secondary));
+    box-shadow: var(--shadow-sm);
+  }
+
+  .chat-card {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .section-heading h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .hint.success {
+    color: var(--success-color);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .field input,
+  .field select,
+  .composer textarea {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    font: inherit;
+    outline: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  .field input:focus,
+  .field select:focus,
+  .composer textarea:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--bg-selected);
+  }
+
+  .settings-actions,
+  .composer-actions,
+  .composer-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .refresh-button,
+  .primary-button,
+  .secondary-button {
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 9px 12px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform var(--transition-fast), opacity var(--transition-fast), background var(--transition-fast);
+  }
+
+  .refresh-button,
+  .secondary-button {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .primary-button {
+    background: var(--accent-color);
+    color: white;
+  }
+
+  .refresh-button:hover,
+  .primary-button:hover,
+  .secondary-button:hover {
+    transform: translateY(-1px);
+  }
+
+  .primary-button:disabled,
+  .secondary-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .tab-list,
+  .summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tab-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    padding: 10px 12px;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+  }
+
+  .tab-option:hover {
+    border-color: var(--accent-color);
+    background: var(--bg-hover);
+  }
+
+  .tab-option.selected {
+    border-color: var(--accent-color);
+    background: var(--bg-selected);
+  }
+
+  .tab-option.disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .tab-option-main,
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .tab-option-title,
+  .summary-item strong {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-option-host,
+  .summary-item span,
+  .tab-option-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .banner {
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .banner.error {
+    background: rgba(255, 59, 48, 0.12);
+    color: var(--danger-color);
+  }
+
+  .banner.status {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+  }
+
+  .messages {
+    flex: 1;
+    min-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 2px;
   }
 
   .empty-state {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 32px;
+    min-height: 220px;
+    padding: 24px;
     text-align: center;
+    border: 1px dashed var(--divider-color);
+    border-radius: var(--radius-lg);
   }
 
   .empty-icon {
@@ -104,8 +871,8 @@
     height: 100%;
   }
 
-  .empty-state h2 {
-    font-size: 16px;
+  .empty-state h3 {
+    font-size: 15px;
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -117,9 +884,65 @@
     line-height: 1.5;
   }
 
-  .setup-hint {
-    margin-top: 4px;
-    font-size: 12px !important;
-    color: var(--text-tertiary) !important;
+  .message-row {
+    display: flex;
+  }
+
+  .message-row.user {
+    justify-content: flex-end;
+  }
+
+  .message-bubble {
+    max-width: 88%;
+    border-radius: 16px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .message-bubble.user {
+    background: var(--accent-color);
+    color: white;
+  }
+
+  .message-role {
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    opacity: 0.72;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .message-bubble p {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+
+  .composer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--divider-color);
+  }
+
+  .composer textarea {
+    min-height: 88px;
+    resize: vertical;
+  }
+
+  @media (max-width: 420px) {
+    .sidepanel-header,
+    .panel-card {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+
+    .message-bubble {
+      max-width: 94%;
+    }
   }
 </style>

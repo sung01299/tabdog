@@ -37,9 +37,16 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'popup.html'),
         sidepanel: resolve(__dirname, 'sidepanel.html'),
+        extractContent: resolve(__dirname, 'src/content-scripts/extract-content.js'),
       },
       output: {
-        entryFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === 'extractContent') {
+            return 'content-scripts/[name].js';
+          }
+
+          return 'assets/[name]-[hash].js';
+        },
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
       },

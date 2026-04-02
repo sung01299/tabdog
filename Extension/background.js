@@ -8,6 +8,7 @@
  */
 
 import { initAuth, onAuthStateChanged, getCurrentUser, signInWithGoogle, signOut } from './services/auth.js';
+import { extractTabContent } from './services/content-extractor.js';
 import { saveSession } from './services/session-history.js';
 import { syncWorkspaces } from './services/workspace.js';
 
@@ -240,6 +241,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.error('[TabDog] Failed to update tab group:', error);
         sendResponse({ error: error.message });
       });
+    return true;
+  }
+
+  if (message.action === 'extractTabContent') {
+    const { tabId } = message;
+
+    extractTabContent(tabId)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error('[TabDog] Failed to extract tab content:', error);
+        sendResponse({
+          ok: false,
+          error: 'unexpected_error',
+          message: error?.message || 'Failed to extract content from the selected tab.',
+        });
+      });
+
     return true;
   }
 });

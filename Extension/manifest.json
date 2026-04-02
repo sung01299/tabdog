@@ -16,6 +16,9 @@
     "scripting",
     "activeTab"
   ],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*"
+  ],
   "optional_host_permissions": [
     "<all_urls>"
   ],
