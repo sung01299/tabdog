@@ -70,8 +70,13 @@ class Crawl4AIExtractor:
         document_id = _make_document_id(extract_result.canonical_url)
 
         raw_html_path = self.file_store.save_raw_html(document_id, raw_html)
+        self.file_store.save_raw_artifact(document_id, "rendered_markdown", extract_result.rendered_markdown)
+        self.file_store.save_raw_artifact(document_id, "rendered_text", extract_result.rendered_text)
+        self.file_store.save_raw_artifact(document_id, "clean_text", extract_result.clean_text)
         self.file_store.save_text(document_id, "full_text", extract_result.full_text)
-        self.file_store.save_text(document_id, "markdown", extract_result.markdown)
+        self.file_store.save_text(document_id, "rendered_markdown", extract_result.rendered_markdown)
+        self.file_store.save_text(document_id, "rendered_text", extract_result.rendered_text)
+        self.file_store.save_text(document_id, "clean_text", extract_result.clean_text)
         self.file_store.save_json(
             document_id,
             "structured_blocks",
@@ -92,6 +97,8 @@ class Crawl4AIExtractor:
             raw_html_path=str(raw_html_path),
             processed_dir=str(processed_dir),
             char_count=len(extract_result.full_text),
+            rendered_char_count=len(extract_result.rendered_text),
+            clean_char_count=len(extract_result.clean_text),
             block_count=len(extract_result.structured_blocks),
             timestamp=extract_result.extracted_at,
         )
@@ -125,14 +132,16 @@ class Crawl4AIExtractor:
             if markdown_result and getattr(markdown_result, "raw_markdown", None)
             else ""
         )
-        normalized_markdown = html_to_text(raw_markdown) if looks_like_html(raw_markdown) else raw_markdown
+        normalized_markdown = html_to_text(raw_markdown) if looks_like_html(raw_markdown) else normalize_whitespace(raw_markdown)
         normalized_cleaned_html = html_to_text(result.cleaned_html)
+        normalized_extracted_content = normalize_whitespace(result.extracted_content)
+        normalized_dom_text = normalize_whitespace(payload.dom_text)
 
         content_candidates = [
-            normalize_whitespace(payload.dom_text),
-            normalize_whitespace(normalized_markdown),
-            normalize_whitespace(result.extracted_content),
-            normalize_whitespace(normalized_cleaned_html),
+            normalized_dom_text,
+            normalized_markdown,
+            normalized_extracted_content,
+            normalized_cleaned_html,
         ]
         full_text = max(content_candidates, key=len, default="")
 
@@ -149,15 +158,17 @@ class Crawl4AIExtractor:
             source_url=str(payload.url),
             canonical_url=canonical_url,
             title=payload.title_hint or metadata.get("title") or canonical_url,
-            markdown=normalized_markdown or full_text,
+            raw_html=result.html or "",
+            cleaned_html=result.cleaned_html or "",
+            rendered_markdown=normalized_markdown or "",
+            rendered_text=normalized_extracted_content or normalized_markdown or "",
+            clean_text=normalized_cleaned_html or "",
             full_text=full_text,
             structured_blocks=blocks,
             extracted_at=datetime.now(timezone.utc),
             extractor="crawl4ai",
             notes=[
-                "dom_text_preferred"
-                if payload.dom_text and normalize_whitespace(payload.dom_text) == full_text
-                else "crawl4ai_primary",
+                "dom_text_preferred" if normalized_dom_text and normalized_dom_text == full_text else "crawl4ai_primary",
             ],
             metadata=metadata,
         )
@@ -174,7 +185,11 @@ def build_placeholder_result(payload: ExtractRequest) -> ExtractResult:
         source_url=str(payload.url),
         canonical_url=str(payload.url),
         title=payload.title_hint or str(payload.url),
-        markdown=full_text,
+        raw_html=payload.html_snapshot or "",
+        cleaned_html="",
+        rendered_markdown=full_text,
+        rendered_text=full_text,
+        clean_text=full_text,
         full_text=full_text,
         structured_blocks=[block] if block else [],
         extracted_at=datetime.now(timezone.utc),
@@ -191,6 +206,8 @@ def build_extract_response(result: ExtractResult, *, document_id: str | None = N
         canonical_url=result.canonical_url,
         char_count=len(result.full_text),
         block_count=len(result.structured_blocks),
+        rendered_char_count=len(result.rendered_text),
+        clean_char_count=len(result.clean_text),
         extracted_at=result.extracted_at,
         extractor=result.extractor,
         notes=result.notes,

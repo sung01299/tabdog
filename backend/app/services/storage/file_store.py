@@ -22,6 +22,12 @@ class FileArtifactStore:
         path.write_text(html, encoding="utf-8")
         return path
 
+    def save_raw_artifact(self, document_id: str, name: str, payload: str) -> Path:
+        path = self.settings.raw_dir / f"{document_id}_{name}.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload, encoding="utf-8")
+        return path
+
     def save_text(self, document_id: str, name: str, payload: str) -> Path:
         path = self.document_dir(document_id) / f"{name}.txt"
         path.write_text(payload, encoding="utf-8")

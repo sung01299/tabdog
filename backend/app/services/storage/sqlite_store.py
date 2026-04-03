@@ -39,11 +39,30 @@ class SQLiteMetadataStore:
                     raw_html_path TEXT NOT NULL,
                     processed_dir TEXT NOT NULL,
                     char_count INTEGER NOT NULL,
+                    rendered_char_count INTEGER NOT NULL DEFAULT 0,
+                    clean_char_count INTEGER NOT NULL DEFAULT 0,
                     block_count INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
+            )
+            self._ensure_document_columns(connection)
+
+    def _ensure_document_columns(self, connection: sqlite3.Connection) -> None:
+        rows = connection.execute("PRAGMA table_info(documents)").fetchall()
+        existing_columns = {row[1] for row in rows}
+
+        required_columns = {
+            "rendered_char_count": "INTEGER NOT NULL DEFAULT 0",
+            "clean_char_count": "INTEGER NOT NULL DEFAULT 0",
+        }
+
+        for column_name, column_sql in required_columns.items():
+            if column_name in existing_columns:
+                continue
+            connection.execute(
+                f"ALTER TABLE documents ADD COLUMN {column_name} {column_sql}"
             )
 
     def upsert_document(
@@ -58,6 +77,8 @@ class SQLiteMetadataStore:
         raw_html_path: str,
         processed_dir: str,
         char_count: int,
+        rendered_char_count: int,
+        clean_char_count: int,
         block_count: int,
         timestamp: datetime,
     ) -> None:
@@ -75,11 +96,13 @@ class SQLiteMetadataStore:
                     raw_html_path,
                     processed_dir,
                     char_count,
+                    rendered_char_count,
+                    clean_char_count,
                     block_count,
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     source_url=excluded.source_url,
                     canonical_url=excluded.canonical_url,
@@ -89,6 +112,8 @@ class SQLiteMetadataStore:
                     raw_html_path=excluded.raw_html_path,
                     processed_dir=excluded.processed_dir,
                     char_count=excluded.char_count,
+                    rendered_char_count=excluded.rendered_char_count,
+                    clean_char_count=excluded.clean_char_count,
                     block_count=excluded.block_count,
                     updated_at=excluded.updated_at
                 """,
@@ -102,6 +127,8 @@ class SQLiteMetadataStore:
                     raw_html_path,
                     processed_dir,
                     char_count,
+                    rendered_char_count,
+                    clean_char_count,
                     block_count,
                     iso_timestamp,
                     iso_timestamp,
