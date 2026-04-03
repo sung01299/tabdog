@@ -39,6 +39,7 @@ class ExtractResult(BaseModel):
     extracted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     extractor: str
     notes: list[str] = Field(default_factory=list)
+    metadata: dict = Field(default_factory=dict)
 
 
 class ExtractResponse(BaseModel):

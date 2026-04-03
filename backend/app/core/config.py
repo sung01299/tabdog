@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     raw_dir: Path = Field(default=DATA_DIR / "raw")
     processed_dir: Path = Field(default=DATA_DIR / "processed")
     sqlite_path: Path = Field(default=DATA_DIR / "metadata.sqlite3")
+    crawl4ai_base_dir: Path = Field(default=DATA_DIR / "crawl4ai")
 
     model_config = SettingsConfigDict(
         env_prefix="TABDOG_BACKEND_",
@@ -35,4 +36,5 @@ def get_settings() -> Settings:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.raw_dir.mkdir(parents=True, exist_ok=True)
     settings.processed_dir.mkdir(parents=True, exist_ok=True)
+    settings.crawl4ai_base_dir.mkdir(parents=True, exist_ok=True)
     return settings

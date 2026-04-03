@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.schemas.extract import ExtractRequest, ExtractResponse
-from app.services.crawl.crawl4ai_service import Crawl4AIExtractor, ExtractorNotConfiguredError
+from app.services.crawl.crawl4ai_service import (
+    Crawl4AIExtractor,
+    ExtractionFailedError,
+    ExtractorNotConfiguredError,
+)
 
 router = APIRouter(prefix="/extract", tags=["extract"])
 
@@ -17,6 +21,11 @@ async def extract_content(
 ) -> ExtractResponse:
     try:
         result = await extractor.extract(payload)
+    except ExtractionFailedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     except ExtractorNotConfiguredError as error:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
