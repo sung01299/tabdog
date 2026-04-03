@@ -1,3 +1,8 @@
+<!--
+  LEGACY NOTICE:
+  This conversations page belongs to the legacy in-extension chat/RAG flow.
+  It remains as a compatibility UI while chat moves to the backend architecture.
+-->
 <script>
   import { onMount } from 'svelte';
   import {

@@ -42,6 +42,11 @@ export function formatTime(isoString) {
   return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+/*
+ * LEGACY NOTICE:
+ * The chat session / side panel launch helpers below support the legacy extension-side chat/RAG flow.
+ * They should be treated as compatibility code during the backend migration.
+ */
 export const CHAT_SESSIONS_KEY = 'tabdogChatSessions';
 export const CHAT_LAUNCH_CONTEXT_KEY = 'tabdogChatLaunchContext';
 

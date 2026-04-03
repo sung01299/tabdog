@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This background/content-script extraction fallback belongs to the legacy in-extension chat/RAG path.
+ * The long-term plan is to replace it with backend-driven extraction.
+ */
 const MIN_CONTENT_CHARS = 120;
 const EXTRACTOR_STEP_TIMEOUT_MS = 15000;
 const EXTRACTOR_DEBUG_PREFIX = '[TabDog Chat][Extractor]';

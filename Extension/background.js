@@ -5,6 +5,10 @@
  * duration display in the popup UI.
  * 
  * Also handles workspace sync and session saving when user is logged in.
+ *
+ * LEGACY NOTICE:
+ * The `extractTabContent` message flow below is part of the legacy extension-side chat/RAG path.
+ * It is intentionally kept for compatibility while extraction moves toward a backend service.
  */
 
 import { initAuth, onAuthStateChanged, getCurrentUser, signInWithGoogle, signOut } from './services/auth.js';

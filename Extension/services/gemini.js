@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This Gemini answer-generation/verification service belongs to the legacy in-extension chat/RAG path.
+ * It is kept temporarily while the project transitions to a backend-driven architecture.
+ */
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MAX_OUTPUT_TOKENS = 1024;
 const MAX_HISTORY_MESSAGES = 12;

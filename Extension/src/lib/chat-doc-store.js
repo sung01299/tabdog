@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This IndexedDB-backed document/chunk store belongs to the legacy in-extension chat/RAG path.
+ * The long-term direction is to move document storage/indexing to the backend service.
+ */
 const DB_NAME = 'tabdog-chat-docs';
 const DB_VERSION = 1;
 const STORE_NAME = 'documents';

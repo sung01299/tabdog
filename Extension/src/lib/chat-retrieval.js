@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This in-extension retrieval/reranking pipeline is part of the legacy chat/RAG implementation.
+ * It should not be expanded as the project migrates retrieval to the backend service.
+ */
 import { cosineSimilarity } from '../../services/gemini-embeddings.js';
 
 const RETRIEVAL_DEBUG_PREFIX = '[TabDog Chat][Retrieval]';

@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This extension-side fetch extractor belongs to the legacy in-extension chat/RAG path.
+ * Keep only for compatibility while extraction moves to the planned backend service.
+ */
 import { Readability } from '@mozilla/readability';
 
 const FETCH_EXTRACTOR_DEBUG_PREFIX = '[TabDog Chat][FetchExtractor]';

@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This extension-side embeddings service belongs to the legacy chat/RAG path.
+ * Embedding generation and retrieval are expected to move to the backend service.
+ */
 const EMBEDDING_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const EMBEDDING_MODEL = 'gemini-embedding-001';
 const EMBEDDING_DIMENSION = 768;

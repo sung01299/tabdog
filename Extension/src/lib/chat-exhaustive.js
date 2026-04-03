@@ -1,3 +1,8 @@
+/*
+ * LEGACY NOTICE:
+ * This exhaustive sweep helper is part of the legacy extension-side chat/RAG stack.
+ * The backend/FastAPI implementation should become the primary home for this logic.
+ */
 const EXHAUSTIVE_DEBUG_PREFIX = '[TabDog Chat][Exhaustive]';
 const EXHAUSTIVE_KEYWORDS = [
   'all', 'every', 'complete', 'entire', 'full', 'overall', 'summarize', 'summary',

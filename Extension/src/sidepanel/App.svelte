@@ -1,3 +1,10 @@
+<!--
+  LEGACY NOTICE:
+  This sidepanel-based RAG/chat implementation is now considered legacy.
+  It remains in the extension temporarily for local testing and backward compatibility
+  while the project moves toward a dedicated backend/FastAPI architecture.
+  Prefer evolving the new backend path rather than extending this file further.
+-->
 <script>
   import { onMount, tick } from 'svelte';
   import { embedDocumentsIfNeeded, embedQuestion } from '@services/gemini-embeddings.js';
