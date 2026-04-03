@@ -127,7 +127,7 @@ class Crawl4AIExtractor:
                     "chunk_index": chunk.chunk_index,
                     "text": chunk.text,
                     "section_path": chunk.section_path,
-                    "block_kinds": str(chunk.block_kinds),
+                    "block_kinds": chunk.block_kinds,
                     "source_type": chunk.source_type,
                     "start_char": chunk.start_char,
                     "end_char": chunk.end_char,
