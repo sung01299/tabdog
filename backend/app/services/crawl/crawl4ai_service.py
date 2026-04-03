@@ -14,6 +14,7 @@ from app.services.crawl.content_normalizer import (
     markdown_to_blocks,
     normalize_whitespace,
 )
+from app.services.indexing.chunker import chunk_structured_blocks
 from app.services.storage.file_store import FileArtifactStore
 from app.services.storage.sqlite_store import SQLiteMetadataStore
 
@@ -82,6 +83,23 @@ class Crawl4AIExtractor:
             "structured_blocks",
             [block.model_dump() for block in extract_result.structured_blocks],
         )
+        chunk_records = chunk_structured_blocks(extract_result.structured_blocks)
+        self.file_store.save_json(
+            document_id,
+            "chunks",
+            [
+                {
+                    "chunk_index": chunk.chunk_index,
+                    "text": chunk.text,
+                    "section_path": chunk.section_path,
+                    "block_kinds": chunk.block_kinds,
+                    "source_type": chunk.source_type,
+                    "start_char": chunk.start_char,
+                    "end_char": chunk.end_char,
+                }
+                for chunk in chunk_records
+            ],
+        )
         self.file_store.save_json(document_id, "metadata", extract_result.metadata)
         self.file_store.save_optional_snapshot(document_id, "dom_snapshot", payload.dom_text)
         self.file_store.save_optional_snapshot(document_id, "html_snapshot", payload.html_snapshot)
@@ -100,6 +118,22 @@ class Crawl4AIExtractor:
             rendered_char_count=len(extract_result.rendered_text),
             clean_char_count=len(extract_result.clean_text),
             block_count=len(extract_result.structured_blocks),
+            timestamp=extract_result.extracted_at,
+        )
+        self.metadata_store.replace_chunks(
+            document_id=document_id,
+            chunks=[
+                {
+                    "chunk_index": chunk.chunk_index,
+                    "text": chunk.text,
+                    "section_path": chunk.section_path,
+                    "block_kinds": str(chunk.block_kinds),
+                    "source_type": chunk.source_type,
+                    "start_char": chunk.start_char,
+                    "end_char": chunk.end_char,
+                }
+                for chunk in chunk_records
+            ],
             timestamp=extract_result.extracted_at,
         )
 

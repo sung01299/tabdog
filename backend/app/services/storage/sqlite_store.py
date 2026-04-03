@@ -47,6 +47,24 @@ class SQLiteMetadataStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chunks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_id TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    text TEXT NOT NULL,
+                    section_path TEXT NOT NULL DEFAULT '',
+                    block_kinds TEXT NOT NULL DEFAULT '[]',
+                    source_type TEXT NOT NULL,
+                    start_char INTEGER NOT NULL,
+                    end_char INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(document_id, chunk_index)
+                )
+                """
+            )
             self._ensure_document_columns(connection)
 
     def _ensure_document_columns(self, connection: sqlite3.Connection) -> None:
@@ -133,4 +151,47 @@ class SQLiteMetadataStore:
                     iso_timestamp,
                     iso_timestamp,
                 ),
+            )
+
+    def replace_chunks(
+        self,
+        *,
+        document_id: str,
+        chunks: list[dict],
+        timestamp: datetime,
+    ) -> None:
+        iso_timestamp = timestamp.isoformat()
+        with self.connect() as connection:
+            connection.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
+            connection.executemany(
+                """
+                INSERT INTO chunks (
+                    document_id,
+                    chunk_index,
+                    text,
+                    section_path,
+                    block_kinds,
+                    source_type,
+                    start_char,
+                    end_char,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        document_id,
+                        chunk["chunk_index"],
+                        chunk["text"],
+                        chunk["section_path"],
+                        chunk["block_kinds"],
+                        chunk["source_type"],
+                        chunk["start_char"],
+                        chunk["end_char"],
+                        iso_timestamp,
+                        iso_timestamp,
+                    )
+                    for chunk in chunks
+                ],
             )
