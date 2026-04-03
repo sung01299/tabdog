@@ -42,6 +42,13 @@ pnpm-debug.log*
 ################################################################################
 .env
 .env.*
+.venv/
+backend/.venv/
+backend/data/
+backend/.pytest_cache/
+backend/__pycache__/
+backend/**/*.pyc
+backend/.mypy_cache/
 
 # Firebase config (contains API keys)
 Extension/config/firebase-config.js
