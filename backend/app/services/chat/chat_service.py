@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from app.schemas.chat import ChatAskResponse, Citation, EvidenceChunk
-from app.services.indexing.gemini_embeddings import embed_chunks, embed_query
+from app.services.indexing.local_embeddings import embed_chunks_local, embed_query_local, warmup_embedding_model
 from app.services.indexing.vector_index import HNSWVectorIndex
 from app.services.llm.gemini_chat import generate_answer, verify_answer
 from app.services.retrieval.hybrid_retriever import retrieve_chunks
@@ -53,8 +53,7 @@ class ChatService:
 
         updated_embeddings = []
         if missing_chunks:
-            embedding_vectors = await embed_chunks(
-                api_key,
+            embedding_vectors = await embed_chunks_local(
                 [
                     (
                         document_map.get(chunk["document_id"], {}).get("title", ""),
@@ -67,20 +66,23 @@ class ChatService:
 
             for chunk, embedding in zip(missing_chunks, embedding_vectors):
                 chunk["embedding"] = embedding
-                chunk["embedding_model"] = "gemini-embedding-001"
+                chunk["embedding_model"] = "local:intfloat/multilingual-e5-small"
                 updated_embeddings.append(
                     {
                         "document_id": chunk["document_id"],
                         "chunk_index": chunk["chunk_index"],
                         "embedding": embedding,
-                        "embedding_model": "gemini-embedding-001",
+                        "embedding_model": "local:intfloat/multilingual-e5-small",
                     }
                 )
 
         if updated_embeddings:
             self.metadata_store.update_chunk_embeddings(embeddings=updated_embeddings)
+            self.vector_index.rebuild(chunks)
+        else:
+            self.vector_index.load()
 
-        query_embedding = await embed_query(api_key, question)
+        query_embedding = await embed_query_local(question)
         vector_scores = self.vector_index.query(
             chunks=chunks,
             query_embedding=query_embedding,
@@ -177,3 +179,7 @@ class ChatService:
                 for chunk in evidence_chunks
             ],
         )
+
+
+async def warmup_chat_runtime() -> None:
+    await warmup_embedding_model()

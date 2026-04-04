@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     processed_dir: Path = Field(default=DATA_DIR / "processed")
     sqlite_path: Path = Field(default=DATA_DIR / "metadata.sqlite3")
     crawl4ai_base_dir: Path = Field(default=DATA_DIR / "crawl4ai")
+    huggingface_home: Path = Field(default=DATA_DIR / "huggingface")
+    vector_index_dir: Path = Field(default=DATA_DIR / "vector_index")
+    local_embedding_model: str = "intfloat/multilingual-e5-small"
 
     model_config = SettingsConfigDict(
         env_prefix="TABDOG_BACKEND_",
@@ -37,4 +40,6 @@ def get_settings() -> Settings:
     settings.raw_dir.mkdir(parents=True, exist_ok=True)
     settings.processed_dir.mkdir(parents=True, exist_ok=True)
     settings.crawl4ai_base_dir.mkdir(parents=True, exist_ok=True)
+    settings.huggingface_home.mkdir(parents=True, exist_ok=True)
+    settings.vector_index_dir.mkdir(parents=True, exist_ok=True)
     return settings
