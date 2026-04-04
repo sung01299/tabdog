@@ -4,6 +4,7 @@ import logging
 
 from app.schemas.chat import ChatAskResponse, Citation, EvidenceChunk
 from app.services.indexing.gemini_embeddings import embed_chunks, embed_query
+from app.services.indexing.vector_index import HNSWVectorIndex
 from app.services.llm.gemini_chat import generate_answer, verify_answer
 from app.services.retrieval.hybrid_retriever import retrieve_chunks
 from app.services.storage.sqlite_store import SQLiteMetadataStore
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 class ChatService:
     def __init__(self, metadata_store: SQLiteMetadataStore | None = None) -> None:
         self.metadata_store = metadata_store or SQLiteMetadataStore()
+        self.vector_index = HNSWVectorIndex()
 
     async def ask(
         self,
@@ -79,6 +81,11 @@ class ChatService:
             self.metadata_store.update_chunk_embeddings(embeddings=updated_embeddings)
 
         query_embedding = await embed_query(api_key, question)
+        vector_scores = self.vector_index.query(
+            chunks=chunks,
+            query_embedding=query_embedding,
+            k=max(20, max_chunks * 4),
+        )
         retrieved = retrieve_chunks(
             question=question,
             chunks=[
@@ -88,7 +95,7 @@ class ChatService:
                 }
                 for chunk in chunks
             ],
-            query_embedding=query_embedding,
+            vector_scores=vector_scores,
             max_chunks=max_chunks,
         )
 

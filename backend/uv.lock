@@ -828,6 +828,15 @@ wheels = [
 ]
 
 [[package]]
+name = "hnswlib"
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cf/7a/1a9b1405f2eb59515f06c3074750b03e0e96edf7fee0f6dd6df81d9c21d7/hnswlib-0.8.0.tar.gz", hash = "sha256:cb6d037eedebb34a7134e7dc78966441dfd04c9cf5ee93911be911ced951c44c", size = 36206, upload-time = "2023-12-03T04:16:17.55Z" }
+
+[[package]]
 name = "hpack"
 version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2340,6 +2349,7 @@ source = { editable = "." }
 dependencies = [
     { name = "crawl4ai" },
     { name = "fastapi" },
+    { name = "hnswlib" },
     { name = "httpx" },
     { name = "pydantic-settings" },
     { name = "uvicorn", extra = ["standard"] },
@@ -2356,6 +2366,7 @@ dev = [
 requires-dist = [
     { name = "crawl4ai", specifier = ">=0.7.0,<0.8.0" },
     { name = "fastapi", specifier = ">=0.116.0,<0.117.0" },
+    { name = "hnswlib", specifier = ">=0.8.0,<0.9.0" },
     { name = "httpx", specifier = ">=0.28.0,<0.29.0" },
     { name = "pydantic-settings", specifier = ">=2.10.0,<3.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.0,<9.0.0" },

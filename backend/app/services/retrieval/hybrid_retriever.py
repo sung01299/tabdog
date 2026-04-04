@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 import re
 
-from app.services.indexing.gemini_embeddings import cosine_similarity
-
 logger = logging.getLogger(__name__)
 
 STOP_WORDS = {
@@ -38,6 +36,10 @@ def lexical_score(question_tokens: list[str], chunk: dict) -> float:
     return score
 
 
+def chunk_key(chunk: dict) -> str:
+    return f"{chunk['document_id']}:{chunk['chunk_index']}"
+
+
 def rerank_score(question: str, question_tokens: list[str], chunk: dict) -> float:
     score = lexical_score(question_tokens, chunk)
     section_path = (chunk.get("section_path") or "").lower()
@@ -62,18 +64,38 @@ def retrieve_chunks(
     *,
     question: str,
     chunks: list[dict],
-    query_embedding: list[float] | None = None,
+    vector_scores: dict[str, float] | None = None,
     max_chunks: int = 10,
 ) -> list[dict]:
     question_tokens = tokenize(question)
-    scored = []
+    lexical_candidates = []
 
     for chunk in chunks:
         lexical = lexical_score(question_tokens, chunk)
+        lexical_candidates.append({
+            "chunk": chunk,
+            "lexical": lexical,
+        })
+
+    lexical_candidates.sort(key=lambda item: item["lexical"], reverse=True)
+    top_lexical_ids = {
+        chunk_key(item["chunk"])
+        for item in lexical_candidates[: max(20, max_chunks * 4)]
+        if item["lexical"] > 0
+    }
+    dense_candidate_ids = set((vector_scores or {}).keys())
+    candidate_ids = top_lexical_ids | dense_candidate_ids
+    candidate_chunks = [
+        chunk for chunk in chunks
+        if not candidate_ids or chunk_key(chunk) in candidate_ids
+    ]
+
+    scored = []
+
+    for chunk in candidate_chunks:
+        lexical = lexical_score(question_tokens, chunk)
         rerank = rerank_score(question, question_tokens, chunk)
-        embedding = 0.0
-        if query_embedding and chunk.get("embedding"):
-            embedding = cosine_similarity(query_embedding, chunk["embedding"])
+        embedding = (vector_scores or {}).get(chunk_key(chunk), 0.0)
 
         hybrid = rerank + (embedding * 24)
         scored.append({
@@ -90,6 +112,7 @@ def retrieve_chunks(
         "Retrieved chunks",
         extra={
             "question": question,
+            "candidate_count": len(candidate_chunks),
             "selected_count": len(selected),
             "chunk_indexes": [item["chunk_index"] for item in selected],
         },
