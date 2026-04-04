@@ -44,12 +44,33 @@ class ChatService:
                 "model": model,
             },
         )
+        logger.info(
+            "Loaded chat documents",
+            extra={
+                "documents": [
+                    {
+                        "id": document["id"],
+                        "title": document["title"],
+                        "char_count": document["char_count"],
+                        "block_count": document["block_count"],
+                    }
+                    for document in documents
+                ]
+            },
+        )
 
         missing_chunks = [
             chunk
             for chunk in chunks
             if not chunk.get("embedding")
         ]
+        logger.info(
+            "Chunk embedding status",
+            extra={
+                "total_chunks": len(chunks),
+                "missing_chunk_embeddings": len(missing_chunks),
+            },
+        )
 
         updated_embeddings = []
         if missing_chunks:
@@ -79,14 +100,34 @@ class ChatService:
         if updated_embeddings:
             self.metadata_store.update_chunk_embeddings(embeddings=updated_embeddings)
             self.vector_index.rebuild(chunks)
+            logger.info(
+                "Stored new local embeddings",
+                extra={
+                    "updated_chunk_embeddings": len(updated_embeddings),
+                },
+            )
         else:
             self.vector_index.load()
+            logger.info("Reused persisted vector index", extra={"chunk_count": len(chunks)})
 
         query_embedding = await embed_query_local(question)
+        logger.info(
+            "Query embedding created",
+            extra={
+                "embedding_dim": len(query_embedding),
+            },
+        )
         vector_scores = self.vector_index.query(
             chunks=chunks,
             query_embedding=query_embedding,
             k=max(20, max_chunks * 4),
+        )
+        logger.info(
+            "Vector retrieval candidate scores",
+            extra={
+                "score_count": len(vector_scores),
+                "top_scores": sorted(vector_scores.items(), key=lambda item: item[1], reverse=True)[:5],
+            },
         )
         retrieved = retrieve_chunks(
             question=question,
@@ -99,6 +140,20 @@ class ChatService:
             ],
             vector_scores=vector_scores,
             max_chunks=max_chunks,
+        )
+        logger.info(
+            "Hybrid retrieval selected chunks",
+            extra={
+                "selected_chunks": [
+                    {
+                        "document_id": chunk["document_id"],
+                        "chunk_index": chunk["chunk_index"],
+                        "section_path": chunk.get("section_path", ""),
+                        "score": chunk.get("_hybrid_score"),
+                    }
+                    for chunk in retrieved
+                ]
+            },
         )
 
         evidence_chunks = [
@@ -113,12 +168,26 @@ class ChatService:
             }
             for chunk in retrieved
         ]
+        logger.info(
+            "Prepared evidence chunks",
+            extra={
+                "evidence_chunk_count": len(evidence_chunks),
+                "evidence_chunk_ids": [chunk["chunk_id"] for chunk in evidence_chunks],
+            },
+        )
 
         answer_result = await generate_answer(
             api_key=api_key,
             model=model,
             question=question,
             chunks=evidence_chunks,
+        )
+        logger.info(
+            "Answer generation completed",
+            extra={
+                "answer_preview": answer_result["answer"][:400],
+                "usage_metadata": answer_result.get("usage_metadata"),
+            },
         )
 
         try:
@@ -138,6 +207,25 @@ class ChatService:
                 "missing_information": [],
             }
 
+        if verified.get("supported") and not verified.get("citations"):
+            logger.warning(
+                "Verifier returned supported answer without citations; using fallback citations",
+                extra={
+                    "evidence_chunk_count": len(evidence_chunks),
+                },
+            )
+            fallback_citations = [
+                {
+                    "chunkId": chunk["chunk_id"],
+                    "quote": chunk["text"][:180],
+                    "reason": "Fallback evidence snippet because verifier omitted citations.",
+                }
+                for chunk in evidence_chunks[:2]
+                if chunk.get("text")
+            ]
+            verified["citations"] = fallback_citations
+            verified["supported"] = bool(fallback_citations)
+
         logger.info(
             "Chat request completed",
             extra={
@@ -146,6 +234,7 @@ class ChatService:
                 "missing_information_count": len(
                     verified.get("missing_information", verified.get("missingInformation", []))
                 ),
+                "final_answer_preview": (verified.get("answer") or answer_result["answer"])[:400],
             },
         )
 
